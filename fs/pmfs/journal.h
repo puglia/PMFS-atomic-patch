@@ -19,6 +19,7 @@
 #define __PMFS_JOURNAL_H__
 #include <linux/slab.h>
 
+
 /* default pmfs journal size 4MB */
 #define PMFS_DEFAULT_JOURNAL_SIZE  (100 << 20)
 /* minimum pmfs journal size 64KB */
@@ -57,6 +58,8 @@
 
 #define MAX_GEN_ID  ((uint16_t)-1)
 
+#define MAX_ATOMIC_MAPPINGS	128
+
 /* persistent data structure to describe a single log-entry */
 /* every log entry is max CACHELINE_SIZE bytes in size */
 typedef struct {
@@ -87,6 +90,19 @@ typedef struct pmfs_transaction {
 	pmfs_block_set_t	*free_blocks;
 } pmfs_transaction_t;
 
+typedef struct pmfs_atomic_mapping{
+
+pmfs_transaction_t 	*trans_t;
+pid_t			owner;
+u32			inode_n;
+
+} pmfs_atomic_mapping_t;
+
+extern pmfs_atomic_mapping_t *get_atm_mapping(pid_t pid, u64 ino);
+extern void new_atm_mapping(struct inode *inode);
+extern void commit_atm_mapping(struct inode *inode);
+extern void finish_atm_mapping(struct inode *inode, int rollback);
+
 extern pmfs_transaction_t *pmfs_alloc_transaction(void);
 extern void pmfs_free_transaction(pmfs_transaction_t *trans);
 
@@ -95,6 +111,8 @@ extern int pmfs_journal_hard_init(struct super_block *sb,
 		uint64_t base, uint32_t size);
 extern int pmfs_journal_uninit(struct super_block *sb);
 
+extern pmfs_transaction_t *pmfs_new_cow_transaction(struct super_block *sb,
+		int max_log_entries, unsigned short btype);
 extern pmfs_block_set_t *pmfs_init_block_set(pmfs_transaction_t *trans, unsigned short btype);
 
 extern pmfs_transaction_t *pmfs_new_transaction(struct super_block *sb,
@@ -102,6 +120,8 @@ extern pmfs_transaction_t *pmfs_new_transaction(struct super_block *sb,
 extern pmfs_transaction_t *pmfs_current_transaction(void);
 extern int pmfs_add_logentry(struct super_block *sb,
 		pmfs_transaction_t *trans, void *addr, uint16_t size, u8 type);
+extern int __pmfs_add_logentry(struct super_block *sb,
+		pmfs_transaction_t *trans, void *addr, uint64_t addr_offset, uint16_t size, u8 type);
 extern int pmfs_commit_transaction(struct super_block *sb,
 		pmfs_transaction_t *trans);
 extern int pmfs_abort_transaction(struct super_block *sb,

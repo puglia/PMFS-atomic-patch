@@ -1268,7 +1268,7 @@ unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
 	}
 	
 	if(!(prot & PROT_WRITE))
-		flags &= ~(MAP_XIP_COW);
+		flags &= ~(MAP_XIP_COW | MAP_ATOMIC);
 	
 	//if(is_xip_cow)
 	//	printk(KERN_NOTICE "XIP_COW - mmap called with flags %lu\n", flags);
@@ -1277,10 +1277,14 @@ unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
 
 	if (file) {
 		switch (flags & MAP_TYPE) {
+		case MAP_ATOMIC:
+			vm_flags |= VM_ATOMIC;
+			goto mshared;
 		case MAP_XIP_COW:
 			//printk(KERN_NOTICE "XIP_COW - VM_XIP_COW_SETTED %lu\n", flags);
 			vm_flags |= VM_XIP_COW;
 		case MAP_SHARED:
+mshared:
 			if ((prot&PROT_WRITE) && !(file->f_mode&FMODE_WRITE))
 				return -EACCES;
 
@@ -1320,6 +1324,9 @@ unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
 		}
 	} else {
 		switch (flags & MAP_TYPE) {
+		case MAP_ATOMIC:
+			vm_flags |= VM_ATOMIC;
+			break;
 		case MAP_XIP_COW:
 			//printk(KERN_NOTICE "XIP_COW - VM_XIP_COW_SETTED %lu\n", flags);
 			vm_flags |= VM_XIP_COW;
@@ -1446,7 +1453,7 @@ SYSCALL_DEFINE1(old_mmap, struct mmap_arg_struct __user *, arg)
 int vma_wants_writenotify(struct vm_area_struct *vma)
 {
 	vm_flags_t vm_flags = vma->vm_flags;
-	int is_xip_cow = vm_flags & VM_XIP_COW;
+	int is_atomic = vm_flags & (VM_XIP_COW | VM_ATOMIC);
 
 	//if(is_xip_cow)
 	//	printk(KERN_NOTICE "XIP_COW - entered vma_wants_writenotify\n");
@@ -1459,7 +1466,7 @@ int vma_wants_writenotify(struct vm_area_struct *vma)
 	if (vma->vm_ops && vma->vm_ops->page_mkwrite)
 		return 1;
 
-	if(is_xip_cow){
+	if(is_atomic){
 		//printk(KERN_NOTICE "XIP_COW - vma_wants_writenotify and returned true\n");
 		return 1;
 	}

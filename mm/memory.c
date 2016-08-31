@@ -2779,6 +2779,7 @@ static int do_wp_page(struct mm_struct *mm, struct vm_area_struct *vma,
 				ret = tmp;
 				goto unwritable_page;
 			}
+
 			if (unlikely(!(tmp & VM_FAULT_LOCKED))) {
 				lock_page(old_page);
 				if (!old_page->mapping) {
@@ -2809,6 +2810,28 @@ static int do_wp_page(struct mm_struct *mm, struct vm_area_struct *vma,
 
 reuse:
 		flush_cache_page(vma, address, pte_pfn(orig_pte));
+
+		if(vma->vm_flags & VM_ATOMIC){
+				struct vm_fault vmf;
+			int tmp;
+
+			vmf.virtual_address = (void __user *)(address &
+								PAGE_MASK);
+			vmf.pgoff = (((address & PAGE_MASK)- vma->vm_start) >> PAGE_SHIFT) + vma->vm_pgoff;
+			vmf.flags = FAULT_FLAG_WRITE|FAULT_FLAG_MKWRITE;
+			//vmf.page = old_page;
+
+			//page_cache_get(old_page);
+			//pte_unmap_unlock(page_table, ptl);
+
+			tmp = vma->vm_ops->page_mkwrite(vma, &vmf);
+			if (unlikely(tmp &
+					(VM_FAULT_ERROR | VM_FAULT_NOPAGE))) {
+				ret = tmp;
+				goto unwritable_page;
+			}
+		}
+			
 		entry = pte_mkyoung(orig_pte);
 		entry = maybe_mkwrite(pte_mkdirty(entry), vma);
 		if (ptep_set_access_flags(vma, address, page_table, entry,1))

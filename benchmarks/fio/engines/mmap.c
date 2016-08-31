@@ -26,7 +26,7 @@
 
 #define XIP_COW 1
 #define TIME_CONT 0
-#define WRITES_BEFORE_MSYNC 3
+#define WRITES_BEFORE_MSYNC 6
 #define MILLIS_BEFORE_MSYNC 5000
 
 static unsigned long mmap_map_size;
@@ -164,7 +164,7 @@ static int fio_mmapio_prep(struct thread_data *td, struct io_u *io_u)
 	 */
 	if (f->mmap_ptr && should_msync() && !(io_u->ddir == DDIR_READ)) {
 		ftime(&start_ms);
-		if (msync(f->mmap_ptr, f->mmap_sz, MS_SYNC | 0x010 )) {
+		if (msync(f->mmap_ptr, f->mmap_sz, MS_SYNC | 0x008 )) {
 			io_u->error = errno;
 			td_verror(td, io_u->error, "msync");
 			printf("msync error\n");

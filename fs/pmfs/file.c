@@ -231,6 +231,7 @@ static int pmfs_writeback(struct page *page, struct address_space *mapping, int 
 			printk(KERN_NOTICE "XIP_COW - pmfs_writeback - remain %ld\n",remain);
 		if(emulate)
 			emulate_latency(PAGE_CACHE_SIZE - remain);
+		
 	}
 
 	return 0;
@@ -264,13 +265,13 @@ static int pmfs_cow_sync(struct file *filp, struct inode *inode, loff_t start, l
 	//if (max_logentries > MAX_METABLOCK_LENTRIES)
 	//	max_logentries = MAX_METABLOCK_LENTRIES;
 
-	trans = pmfs_new_transaction(sb, MAX_INODE_LENTRIES + max_logentries);
+	trans = pmfs_new_cow_transaction(sb,MAX_INODE_LENTRIES + max_logentries, pi->i_blk_type);
+
 	if (IS_ERR(trans)) {
 		ret = PTR_ERR(trans);
 		goto out;
 	}
 
-	pmfs_init_block_set(trans, pi->i_blk_type);
 	pmfs_add_logentry(sb, trans, pi, MAX_DATA_PER_LENTRY, LE_DATA);
 
 	ret = file_remove_suid(filp);
@@ -350,6 +351,12 @@ writeback:
 				set_pte(ptep, ptec);
 				if(datasync == 17)
 					pmfs_flush_buffer(page_address(page), PAGE_CACHE_SIZE, 0);
+
+				/*if(PageDirty(page)){	
+					lock_page(page);
+					clear_page_dirty_for_io(page);
+					unlock_page(page);
+				}*/
 			}
 			else {
 				printk("XIP_COW - pmfs_cow_sync writing back blocks error!!!\n");
@@ -399,6 +406,8 @@ static int pmfs_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 
 	if(datasync >= 12)
 		return	pmfs_cow_sync(file,inode,start,end,datasync);
+	else if(datasync >=11)
+		commit_atm_mapping(inode);
 	
 	end += 1; /* end is inclusive. We like our indices normal please ! */
 
