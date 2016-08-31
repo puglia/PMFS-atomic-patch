@@ -281,7 +281,7 @@ static int pmfs_cow_sync(struct file *filp, struct inode *inode, loff_t start, l
 	inode->i_ctime = inode->i_mtime = CURRENT_TIME_SEC;
 	pmfs_update_time(inode, pi);
 	addr = start;
-	pte_list = kmalloc(num_blocks * sizeof(pte_t*), GFP_NOFS);
+	pte_list = vmalloc(num_blocks * sizeof(pte_t*));
 	do{
 		//printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - following address %lx \n",addr);
 		ret = pte_follow(mm, addr, &ptep, &ptl);
@@ -348,11 +348,8 @@ writeback:
 			if(!ret){
 				ptec = pte_mkclean(*ptep);
 				set_pte(ptep, ptec);
-				/*if(PageDirty(page)){	
-					lock_page(page);
-					clear_page_dirty_for_io(page);
-					unlock_page(page);
-				}*/
+				if(datasync == 17)
+					pmfs_flush_buffer(page_address(page), PAGE_CACHE_SIZE, 0);
 			}
 			else {
 				printk("XIP_COW - pmfs_cow_sync writing back blocks error!!!\n");
@@ -366,7 +363,8 @@ writeback:
 
 	pmfs_sync_commit(sb, trans);
 out:
-	
+	if(pte_list)
+		vfree(pte_list);
 	mutex_unlock(&inode->i_mutex);
 	sb_end_write(inode->i_sb);
 
@@ -380,8 +378,17 @@ out:
  * pmfs_flush_buffer() on fsync() */
 static int pmfs_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 {
+	if(!file){
+		printk("NO FILE!   \n");
+		return 0;
+	}	
+	
 	/* Sync from start to end[inclusive] */
 	struct address_space *mapping = file->f_mapping;
+	if(!mapping){
+		printk("NO MAPPING!   \n");
+		return 0;
+	}
 	struct inode *inode = mapping->host;
 	loff_t isize;
 	int error;
