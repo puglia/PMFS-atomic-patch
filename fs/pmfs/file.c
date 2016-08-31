@@ -237,6 +237,33 @@ static int pmfs_writeback(struct page *page, struct address_space *mapping, int 
 	return 0;
 }
 
+pmfs_block_set_t *pmfs_init_block_set_alt(pmfs_transaction_t *trans, unsigned short btype){
+	pmfs_block_set_t *blk_set;
+	blk_set = kmalloc(sizeof(pmfs_block_set_t), GFP_NOFS);
+	blk_set->blocks = kmalloc((trans->num_entries * sizeof(unsigned long)) - 2, GFP_NOFS );
+	blk_set->total_blocks = 0;
+	blk_set->i_blk_type = btype;
+	blk_set->i_opt = 1;
+	trans->free_blocks = blk_set;
+	printk("Alternative block allocator \n");
+	return blk_set;
+}
+
+pmfs_transaction_t *pmfs_new_cow_transaction_alt(struct super_block *sb,
+		int max_log_entries, unsigned short btype){
+
+	pmfs_transaction_t *trans;
+
+	trans = pmfs_new_transaction(sb, max_log_entries);
+	if (IS_ERR(trans)) 
+		goto out;
+
+	pmfs_init_block_set_alt(trans, btype);
+out:
+	return trans;
+	
+}
+
 static int pmfs_cow_sync(struct file *filp, struct inode *inode, loff_t start, loff_t end, int datasync){
 
 	struct mm_struct *mm = current->mm;
@@ -265,7 +292,11 @@ static int pmfs_cow_sync(struct file *filp, struct inode *inode, loff_t start, l
 	//if (max_logentries > MAX_METABLOCK_LENTRIES)
 	//	max_logentries = MAX_METABLOCK_LENTRIES;
 
-	trans = pmfs_new_cow_transaction(sb,MAX_INODE_LENTRIES + max_logentries, pi->i_blk_type);
+	printk("datasync %d \n", datasync);
+	if(!(datasync == 16))
+		trans = pmfs_new_cow_transaction(sb,MAX_INODE_LENTRIES + max_logentries, pi->i_blk_type);
+	else
+		trans = pmfs_new_cow_transaction_alt(sb,MAX_INODE_LENTRIES + max_logentries, pi->i_blk_type);
 
 	if (IS_ERR(trans)) {
 		ret = PTR_ERR(trans);
@@ -340,8 +371,6 @@ writeback:
 	if(datasync != 15)
 		for(i=0;i<list_size;i++){
 			ptep = pte_list[i];
-			if(datasync == 16)
-				printk("Pages dirty: %d\n",list_size);
 			page = pte_page(*pte_list[i]);
 		
 			ret = pmfs_writeback(page, inode->i_mapping,datasync - 12);

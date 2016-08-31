@@ -75,6 +75,7 @@ typedef struct pmfs_block_set{
 	unsigned long 	*blocks;
 	u32		total_blocks;
 	u8		i_blk_type;
+	u8		i_opt;
 } pmfs_block_set_t;
 
 /* volatile data structure to describe a transaction */
