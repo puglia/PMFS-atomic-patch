@@ -3,9 +3,9 @@ ioengine=mmap
 #norandommap
 rw=readwrite
 time_based
-runtime=30s
+runtime=60s
 #size=4g
 nrfiles=1
-filesize=128m
+filesize=1024m
 directory=/mnt/pmfs
 end_fsync=1

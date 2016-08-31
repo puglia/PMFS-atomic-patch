@@ -231,6 +231,7 @@ static int pmfs_writeback(struct page *page, struct address_space *mapping, int 
 			printk(KERN_NOTICE "XIP_COW - pmfs_writeback - remain %ld\n",remain);
 		if(emulate)
 			emulate_latency(PAGE_CACHE_SIZE - remain);
+		
 	}
 
 	return 0;
@@ -264,13 +265,13 @@ static int pmfs_cow_sync(struct file *filp, struct inode *inode, loff_t start, l
 	//if (max_logentries > MAX_METABLOCK_LENTRIES)
 	//	max_logentries = MAX_METABLOCK_LENTRIES;
 
-	trans = pmfs_new_transaction(sb, MAX_INODE_LENTRIES + max_logentries);
+	trans = pmfs_new_cow_transaction(sb,MAX_INODE_LENTRIES + max_logentries, pi->i_blk_type);
+
 	if (IS_ERR(trans)) {
 		ret = PTR_ERR(trans);
 		goto out;
 	}
 
-	pmfs_init_block_set(trans, pi->i_blk_type);
 	pmfs_add_logentry(sb, trans, pi, MAX_DATA_PER_LENTRY, LE_DATA);
 
 	ret = file_remove_suid(filp);
@@ -281,7 +282,7 @@ static int pmfs_cow_sync(struct file *filp, struct inode *inode, loff_t start, l
 	inode->i_ctime = inode->i_mtime = CURRENT_TIME_SEC;
 	pmfs_update_time(inode, pi);
 	addr = start;
-	pte_list = kmalloc(num_blocks * sizeof(pte_t*), GFP_NOFS);
+	pte_list = vmalloc(num_blocks * sizeof(pte_t*));
 	do{
 		//printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - following address %lx \n",addr);
 		ret = pte_follow(mm, addr, &ptep, &ptl);
@@ -348,6 +349,8 @@ writeback:
 			if(!ret){
 				ptec = pte_mkclean(*ptep);
 				set_pte(ptep, ptec);
+				if(datasync == 17)
+					pmfs_flush_buffer(page_address(page), PAGE_CACHE_SIZE, 0);
 				/*if(PageDirty(page)){	
 					lock_page(page);
 					clear_page_dirty_for_io(page);
@@ -366,7 +369,8 @@ writeback:
 
 	pmfs_sync_commit(sb, trans);
 out:
-	
+	if(pte_list)
+		vfree(pte_list);
 	mutex_unlock(&inode->i_mutex);
 	sb_end_write(inode->i_sb);
 
@@ -392,6 +396,8 @@ static int pmfs_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 
 	if(datasync >= 12)
 		return	pmfs_cow_sync(file,inode,start,end,datasync);
+	else if(datasync >=11)
+		commit_atm_mapping(inode);
 	
 	end += 1; /* end is inclusive. We like our indices normal please ! */
 

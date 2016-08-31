@@ -1,5 +1,3 @@
-
-
 #define _PCM_INTERNAL_H
 
 #define NS2CYCLE(__ns) ((__ns) * M_PCM_CPUFREQ / 1000)

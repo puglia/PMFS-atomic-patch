@@ -20,6 +20,112 @@
 #include "xip.h"
 #include "pcm_i.h"
 
+static int log_new_block(pmfs_transaction_t *trans,
+	struct super_block *sb, struct pmfs_inode *pi,
+	unsigned long blocknr,__le64 block,int height, unsigned long new_block)
+{
+	int errval, le_size;
+	unsigned int meta_bits = META_BLK_SHIFT, node_bits;
+	__le64 *node;
+	unsigned long new_blk, next_blk;
+	unsigned int index;
+
+	node = pmfs_get_block(sb, le64_to_cpu(block));
+	
+	node_bits = (height - 1) * meta_bits;
+	
+	index = blocknr >> node_bits;
+	if (height == 1 || height == 0) {
+			
+			new_blk = cpu_to_le64(pmfs_get_block_off(sb,
+						new_block, pi->i_blk_type));
+			//printk("XIP_ATOMIC - new_blk %llx!\n",new_blk);
+			le_size = sizeof(__le64);
+			__pmfs_add_logentry(sb, trans, &new_blk,height?&node[index]:&pi->root,
+				le_size, LE_DATA);
+
+			errval = pmfs_add_block_to_free(trans,new_block);
+
+			if(errval < 0)
+				goto fail;
+	}  else {
+		next_blk = blocknr & ((1 << node_bits) - 1);
+
+		errval = log_new_block(trans, sb, pi, next_blk, node[index],height - 1,new_block);
+		if (errval < 0)
+			goto fail;
+	}
+	errval = 0;
+fail:
+	return errval;
+}
+
+int pmfs_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf){
+	struct address_space *mapping = vma->vm_file->f_mapping;
+	struct inode *inode = mapping->host;
+	struct super_block *sb = inode->i_sb;
+	struct pmfs_inode *pi = pmfs_get_inode(sb, inode->i_ino);
+	pmfs_transaction_t *trans;
+	pmfs_atomic_mapping_t *atm;
+	pgoff_t size;
+	size_t remain = 0;
+	__le64 cpy_addr;
+	void *xip_mem,*cpy_mem;
+	unsigned long xip_pfn;
+	unsigned long blocknr;
+	int err;
+	
+	atm = get_atm_mapping(current->pid, inode->i_ino);
+	if(!atm)
+		return VM_FAULT_SIGBUS;
+	trans = atm->trans_t;
+
+	size = (i_size_read(inode) + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+	if (vmf->pgoff >= size) {
+		pmfs_dbg("[%s:%d] pgoff >= size(SIGBUS). vm_start(0x%lx),"
+			" vm_end(0x%lx), pgoff(0x%lx), VA(%lx)\n",
+			__func__, __LINE__, vma->vm_start, vma->vm_end,
+			vmf->pgoff, (unsigned long)vmf->virtual_address);
+		return VM_FAULT_SIGBUS;
+	}
+
+	err = pmfs_get_xip_mem(mapping, vmf->pgoff, 1, &xip_mem, &xip_pfn);
+	if (unlikely(err)) {
+		pmfs_dbg("[%s:%d] get_xip_mem failed(OOM). vm_start(0x%lx),"
+			" vm_end(0x%lx), pgoff(0x%lx), VA(%lx)\n",
+			__func__, __LINE__, vma->vm_start, vma->vm_end,
+			vmf->pgoff, (unsigned long)vmf->virtual_address);
+		return VM_FAULT_SIGBUS;
+	}
+
+	err = pmfs_new_block(sb, &blocknr, pi->i_blk_type, 0);
+
+	cpy_addr = cpu_to_le64(pmfs_get_block_off(sb,blocknr, pi->i_blk_type));
+	cpy_mem = pmfs_get_block(sb,cpy_addr);
+
+	pmfs_xip_mem_protect(sb, cpy_mem, PAGE_CACHE_SHIFT, 1);
+	remain = __copy_from_user_inatomic_nocache(cpy_mem, xip_mem, PAGE_CACHE_SIZE);
+	pmfs_xip_mem_protect(sb, cpy_mem, PAGE_CACHE_SHIFT, 0);
+
+	emulate_latency(PAGE_CACHE_SIZE - remain);
+	//printk("XIP_ATOMIC   latency %ld \n",PAGE_CACHE_SIZE - remain);
+	//printk("XIP_ATOMIC   accessed block: %llx   new block %llx \n",vmf->pgoff,blocknr);
+
+	log_new_block(trans, sb, pi, vmf->pgoff, pi->root,pi->height, blocknr);
+
+	return 0;
+}
+
+void pmfs_close_mapping(struct vm_area_struct *vma){
+	struct address_space *mapping = vma->vm_file->f_mapping;
+	struct inode *inode = mapping->host;
+
+	if(!(vma->vm_flags & VM_ATOMIC))
+		return;
+
+	finish_atm_mapping(inode, 1);
+}
+
 /*
  * Wrappers. We need to use the rcu read lock to avoid
  * concurrent truncate operation. No problem for write because we held
@@ -646,6 +752,8 @@ static int pmfs_xip_file_hpage_fault(struct vm_area_struct *vma,
 
 static const struct vm_operations_struct pmfs_xip_vm_ops = {
 	.fault	= pmfs_xip_file_fault,
+	.page_mkwrite = pmfs_mkwrite,
+	.close	= pmfs_close_mapping,
 };
 
 static const struct vm_operations_struct pmfs_xip_hpage_vm_ops = {
@@ -668,6 +776,9 @@ int pmfs_xip_file_mmap(struct file *file, struct vm_area_struct *vma)
 	file_accessed(file);
 
 	vma->vm_flags |= VM_MIXEDMAP;
+
+	if(vma->vm_flags & VM_ATOMIC)
+		new_atm_mapping(file->f_mapping->host);
 
 	block_sz = pmfs_data_block_size(vma, vma->vm_start, 0);
 	if (pmfs_has_huge_mmap(file->f_mapping->host->i_sb) &&
