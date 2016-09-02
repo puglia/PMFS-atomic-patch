@@ -183,16 +183,6 @@ static loff_t pmfs_llseek(struct file *file, loff_t offset, int origin)
 	return offset;
 }
 
-inline int pmfs_sync_commit(struct super_block *sb, pmfs_transaction_t *trans){
-	struct pmfs_sb_info *sbi = PMFS_SB(sb);
-	int ret = 0;
-	mutex_lock(&sbi->s_lock);
-	ret = pmfs_commit_transaction(sb, trans);
-	mutex_unlock(&sbi->s_lock);
-
-	return ret;	
-}
-
 inline int pmfs_sync_abort(struct super_block *sb, pmfs_transaction_t *trans){
 	struct pmfs_sb_info *sbi = PMFS_SB(sb);
 	int ret = 0;
@@ -231,6 +221,7 @@ static int pmfs_writeback(struct page *page, struct address_space *mapping, int 
 			printk(KERN_NOTICE "XIP_COW - pmfs_writeback - remain %ld\n",remain);
 		if(emulate)
 			emulate_latency(PAGE_CACHE_SIZE - remain);
+		
 	}
 
 	return 0;
@@ -264,13 +255,15 @@ static int pmfs_cow_sync(struct file *filp, struct inode *inode, loff_t start, l
 	//if (max_logentries > MAX_METABLOCK_LENTRIES)
 	//	max_logentries = MAX_METABLOCK_LENTRIES;
 
-	trans = pmfs_new_transaction(sb, MAX_INODE_LENTRIES + max_logentries);
+	trans = pmfs_new_cow_transaction(sb,MAX_INODE_LENTRIES + max_logentries, pi->i_blk_type);
+	if(datasync == 16)
+		trans->free_blocks->i_opt = 1;
+
 	if (IS_ERR(trans)) {
 		ret = PTR_ERR(trans);
 		goto out;
 	}
 
-	pmfs_init_block_set(trans, pi->i_blk_type);
 	pmfs_add_logentry(sb, trans, pi, MAX_DATA_PER_LENTRY, LE_DATA);
 
 	ret = file_remove_suid(filp);
@@ -339,8 +332,6 @@ writeback:
 	if(datasync != 15)
 		for(i=0;i<list_size;i++){
 			ptep = pte_list[i];
-			if(datasync == 16)
-				printk("Pages dirty: %d\n",list_size);
 			page = pte_page(*pte_list[i]);
 		
 			ret = pmfs_writeback(page, inode->i_mapping,datasync - 12);
@@ -350,6 +341,12 @@ writeback:
 				set_pte(ptep, ptec);
 				if(datasync == 17)
 					pmfs_flush_buffer(page_address(page), PAGE_CACHE_SIZE, 0);
+
+				/*if(PageDirty(page)){	
+					lock_page(page);
+					clear_page_dirty_for_io(page);
+					unlock_page(page);
+				}*/
 			}
 			else {
 				printk("XIP_COW - pmfs_cow_sync writing back blocks error!!!\n");
@@ -361,7 +358,7 @@ writeback:
 				goto out;
 		}
 
-	pmfs_sync_commit(sb, trans);
+	pmfs_commit_transaction(sb, trans);
 out:
 	if(pte_list)
 		vfree(pte_list);
@@ -399,6 +396,8 @@ static int pmfs_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 
 	if(datasync >= 12)
 		return	pmfs_cow_sync(file,inode,start,end,datasync);
+	else if(datasync >=11)
+		commit_atm_mapping(inode);
 	
 	end += 1; /* end is inclusive. We like our indices normal please ! */
 

@@ -29,9 +29,89 @@
 #include <linux/mutex.h>
 #include <linux/sched.h>
 #include <linux/kthread.h>
+#include <linux/types.h>
 #include "pmfs.h"
 #include "journal.h"
 #include "pcm_i.h"
+
+pmfs_atomic_mapping_t	*atomic_maps[MAX_ATOMIC_MAPPINGS];
+
+pmfs_atomic_mapping_t *get_atm_mapping(pid_t pid, u64 ino){
+	int i;
+	for(i =0; i<MAX_ATOMIC_MAPPINGS; i++)
+		if(atomic_maps[i]->owner == pid && atomic_maps[i]->inode_n == ino)
+			return atomic_maps[i];
+	printk("Mapping not found\n");
+	return NULL;
+}
+
+void remove_atm_mapping(pid_t pid, u64 ino){
+	int i;
+	for(i =0; i<MAX_ATOMIC_MAPPINGS; i++)
+		if(atomic_maps[i] != NULL && atomic_maps[i]->owner == pid && atomic_maps[i]->inode_n == ino){
+			kfree(atomic_maps[i]);
+			atomic_maps[i] = NULL;
+			break;
+		}
+}
+
+void new_atm_mapping(struct inode *inode){
+	struct super_block *sb = inode->i_sb;
+	struct pmfs_inode *pi;
+	int i;
+	pmfs_atomic_mapping_t *atm_mapping;
+
+	pi = pmfs_get_inode(sb, inode->i_ino); 
+
+	atm_mapping = kmalloc(sizeof(pmfs_atomic_mapping_t),GFP_NOFS);
+	atm_mapping->owner = current->pid;
+	atm_mapping->inode_n	= inode->i_ino;
+	atm_mapping->trans_t = pmfs_new_cow_transaction(sb,pi->i_blocks,pi->i_blk_type);
+
+	printk("Owner: %d  inode %d  \n",current->pid,inode->i_ino);
+	for(i =0; i<MAX_ATOMIC_MAPPINGS; i++)
+		if(!atomic_maps[i]){
+			printk("POS: %d\n",i);
+			atomic_maps[i] = atm_mapping;
+			break;
+	}
+}
+
+void commit_atm_mapping(struct inode *inode){
+	struct super_block *sb = inode->i_sb;
+	struct pmfs_inode *pi;
+	pmfs_atomic_mapping_t *mapping;
+	int i;
+
+	pi = pmfs_get_inode(sb, inode->i_ino);
+
+	mapping = get_atm_mapping(current->pid, inode->i_ino);
+	if(!mapping)
+		return;
+
+	pmfs_commit_transaction(sb, mapping->trans_t);
+	mapping->trans_t = pmfs_new_cow_transaction(sb,pi->i_blocks,pi->i_blk_type);
+}
+
+void finish_atm_mapping(struct inode *inode, int rollback){
+	struct super_block *sb = inode->i_sb;
+	struct pmfs_inode *pi;
+	pmfs_atomic_mapping_t *mapping;
+	int i;
+
+	pi = pmfs_get_inode(sb, inode->i_ino);
+
+	mapping = get_atm_mapping(current->pid, inode->i_ino);
+	if(!mapping)
+		return;
+
+	if(rollback)
+		pmfs_abort_transaction(sb, mapping->trans_t);
+	else
+		pmfs_commit_transaction(sb, mapping->trans_t);
+
+	remove_atm_mapping(current->pid, inode->i_ino);
+}
 
 static void dump_transaction(struct pmfs_sb_info *sbi,
 		pmfs_transaction_t *trans)
@@ -390,7 +470,7 @@ static int pmfs_log_cleaner(void *arg)
 {
 	struct super_block *sb = (struct super_block *)arg;
 	struct pmfs_sb_info *sbi = PMFS_SB(sb);
-
+	
 	pmfs_dbg_trans("Running log cleaner thread\n");
 	for ( ; ; ) {
 		log_cleaner_try_sleeping(sbi);
@@ -419,6 +499,7 @@ static int pmfs_journal_cleaner_run(struct super_block *sb)
 		pmfs_err(sb, "Failed to start pmfs log cleaner thread\n");
 		ret = -1;
 	}
+
 	return ret;
 }
 
@@ -492,17 +573,35 @@ inline int pmfs_add_block_to_free( pmfs_transaction_t *trans, unsigned long blk)
 	if(trans->free_blocks->total_blocks >= trans->num_entries)
 		return -ENOMEM;
 			
+	if(!trans || !trans->free_blocks)
+		printk("No trans or free blocks!!!!!!!!!!!!!!\n");
 	trans->free_blocks->blocks[trans->free_blocks->total_blocks] = blk;
 	trans->free_blocks->total_blocks++;
 
 	return 0;
 }
 
+pmfs_transaction_t *pmfs_new_cow_transaction(struct super_block *sb,
+		int max_log_entries, unsigned short btype){
+
+	pmfs_transaction_t *trans;
+
+	trans = pmfs_new_transaction(sb, max_log_entries);
+	if (IS_ERR(trans)) 
+		goto out;
+
+	pmfs_init_block_set(trans, btype);
+out:
+	return trans;
+	
+}
+
 pmfs_block_set_t *pmfs_init_block_set(pmfs_transaction_t *trans, unsigned short btype){
 	pmfs_block_set_t *blk_set;
-	blk_set = kmalloc(sizeof(pmfs_block_set_t) , GFP_NOFS);
-	blk_set->blocks = kmalloc((trans->num_entries * sizeof(unsigned long)) - 2 , GFP_NOFS);
+	blk_set = vmalloc(sizeof(pmfs_block_set_t) );
+	blk_set->blocks = vmalloc((trans->num_entries * sizeof(unsigned long)) - 2 );
 	blk_set->total_blocks = 0;
+	blk_set->i_opt = 0;
 	blk_set->i_blk_type = btype;
 	trans->free_blocks = blk_set;
 	return blk_set;
@@ -645,12 +744,18 @@ static inline void pmfs_commit_logentry(struct super_block *sb,
 }
 
 int pmfs_add_logentry(struct super_block *sb,
-		pmfs_transaction_t *trans, void *addr, uint16_t size, u8 type)
+		pmfs_transaction_t *trans, void *addr, uint16_t size, u8 type){
+
+	return __pmfs_add_logentry(sb,trans,addr,0,size,type);
+}
+
+int __pmfs_add_logentry(struct super_block *sb,
+		pmfs_transaction_t *trans, void *addr, uint64_t addr_offset, uint16_t size, u8 type)
 {
 	struct pmfs_sb_info *sbi = PMFS_SB(sb);
 	pmfs_logentry_t *le;
 	int num_les = 0, i;
-	uint64_t le_start = size ? pmfs_get_addr_off(sbi, addr) : 0;
+	uint64_t le_start = size ? (pmfs_get_addr_off(sbi, addr_offset?addr_offset:addr)) : 0;
 	uint8_t le_size;
 	return 0;
 	if (trans == NULL)
@@ -723,34 +828,66 @@ int pmfs_add_logentry(struct super_block *sb,
 	}
 	return 0;
 }
-
-void pmfs_free_trans_blocks(struct super_block *sb, pmfs_block_set_t *block_set){
+int ftrofdwulf = 0;
+static int pmfs_free_trans_blocks(void *data){
 	int i;
-	if(!block_set)
-		return;
+	pmfs_free_block_request_t *request = (pmfs_free_block_request_t *)data;	
+	pmfs_transaction_t *trans = request->trans_t;
+	pmfs_block_set_t *block_set = trans->free_blocks;
+	struct super_block *sb = request->sb_t;
+	struct pmfs_sb_info *sbi = PMFS_SB(sb);
 
+	if(!block_set)
+		return 0;
+	printk("Total bollocks: %d  \n",block_set->total_blocks);
+	printk("Total bollocks: %d \n",ftrofdwulf);
 	for(i = 0; i<block_set->total_blocks; i++)
 		__pmfs_free_block(sb, block_set->blocks[i], block_set->i_blk_type,NULL);
-			
+	
+	mutex_unlock(&sbi->s_lock);
+
+	pmfs_free_transaction(trans);
+	vfree(data);
+	printk("Exiting Free blocks N: %d\n",ftrofdwulf);
+	return 0;
+}
+
+pmfs_free_block_request_t *init_request(struct super_block *sb,
+		pmfs_transaction_t *trans){
+	pmfs_free_block_request_t *request = vmalloc(sizeof(pmfs_free_block_request_t));
+	request->trans_t = trans;
+	request->sb_t = sb;
+	return request;
 }
 
 int pmfs_commit_transaction(struct super_block *sb,
 		pmfs_transaction_t *trans)
 {
-	
+	struct task_struct *tsk;
 	if (trans == NULL)
 		return 0;
 	/* Add the commit log-entry */
 	pmfs_add_logentry(sb, trans, NULL, 0, LE_COMMIT);
-
 	pmfs_dbg_trans("completing transaction for id %d\n",
 		trans->transaction_id);
-
-	
-	pmfs_free_trans_blocks(sb,trans->free_blocks);
-
+	ftrofdwulf++;
 	current->journal_info = trans->parent;
-	pmfs_free_transaction(trans);
+
+	if(trans->free_blocks && trans->free_blocks->total_blocks > 0){
+		if(trans->free_blocks->i_opt == 0)
+			tsk = kthread_run(pmfs_free_trans_blocks, init_request(sb,trans),
+			"transaction freeing thread");
+		else
+			pmfs_free_trans_blocks((void *)init_request(sb,trans));
+		if (IS_ERR(tsk)) {
+			/* failure at boot is fatal */
+			pmfs_err(sb, "Failed to start pmfs cow block cleaner thread\n");
+			return -1;
+		}
+	}
+	else
+		pmfs_free_transaction(trans);
+	printk("Exiting commit transaction   N: %d \n", ftrofdwulf);
 	return 0;
 }
 
