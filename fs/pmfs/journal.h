@@ -75,7 +75,6 @@ typedef struct pmfs_block_set{
 	unsigned long 	*blocks;
 	u32		total_blocks;
 	u8		i_blk_type;
-	u8		i_opt;
 } pmfs_block_set_t;
 
 /* volatile data structure to describe a transaction */
@@ -98,6 +97,13 @@ pid_t			owner;
 u32			inode_n;
 
 } pmfs_atomic_mapping_t;
+
+typedef struct pmfs_free_block_request{
+
+pmfs_transaction_t 	*trans_t;
+struct super_block	*sb_t;
+
+} pmfs_free_block_request_t;
 
 extern pmfs_atomic_mapping_t *get_atm_mapping(pid_t pid, u64 ino);
 extern void new_atm_mapping(struct inode *inode);

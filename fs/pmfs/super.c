@@ -954,12 +954,8 @@ static void pmfs_put_super(struct super_block *sb)
 inline void pmfs_free_transaction(pmfs_transaction_t *trans)
 {
 	if(trans->free_blocks){
-		if(trans->free_blocks->i_opt)
-			kfree(trans->free_blocks);
-		else {
-			vfree(trans->free_blocks->blocks);
-			vfree(trans->free_blocks);
-		}
+		vfree(trans->free_blocks->blocks);
+		vfree(trans->free_blocks);
 	}
 
 	kmem_cache_free(pmfs_transaction_cachep, trans);

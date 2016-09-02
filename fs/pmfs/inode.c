@@ -714,6 +714,7 @@ static int rec_cow_block(pmfs_transaction_t *trans,
 
 			old_blk = pmfs_get_blocknr(sb, le64_to_cpu(node[index]),
 				    pi->i_blk_type);
+
 			//__pmfs_free_block(sb, old_blk, pi->i_blk_type,NULL);
 			errval = pmfs_add_block_to_free(trans,old_blk);
 

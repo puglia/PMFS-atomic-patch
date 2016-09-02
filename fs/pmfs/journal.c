@@ -29,6 +29,7 @@
 #include <linux/mutex.h>
 #include <linux/sched.h>
 #include <linux/kthread.h>
+#include <linux/types.h>
 #include "pmfs.h"
 #include "journal.h"
 #include "pcm_i.h"
@@ -469,7 +470,7 @@ static int pmfs_log_cleaner(void *arg)
 {
 	struct super_block *sb = (struct super_block *)arg;
 	struct pmfs_sb_info *sbi = PMFS_SB(sb);
-
+	
 	pmfs_dbg_trans("Running log cleaner thread\n");
 	for ( ; ; ) {
 		log_cleaner_try_sleeping(sbi);
@@ -498,6 +499,7 @@ static int pmfs_journal_cleaner_run(struct super_block *sb)
 		pmfs_err(sb, "Failed to start pmfs log cleaner thread\n");
 		ret = -1;
 	}
+
 	return ret;
 }
 
@@ -826,20 +828,45 @@ int __pmfs_add_logentry(struct super_block *sb,
 	return 0;
 }
 
-void pmfs_free_trans_blocks(struct super_block *sb, pmfs_block_set_t *block_set){
+static int pmfs_free_trans_blocks(void *data){
 	int i;
+	/*pmfs_free_block_request_t *request = (pmfs_free_block_request_t *)data;	
+	pmfs_transaction_t *trans = request->trans_t;
+	pmfs_block_set_t *block_set = trans->free_blocks;
+	struct super_block *sb = request->sb_t;
+	struct pmfs_sb_info *sbi = PMFS_SB(sb);
+
 	if(!block_set)
-		return;
+		return 0;
 	printk("Total bollocks: %d  \n",block_set->total_blocks);
-	for(i = 0; i<block_set->total_blocks; i++)
-		__pmfs_free_block(sb, block_set->blocks[i], block_set->i_blk_type,NULL);
-			
+	*/
+	printk("Total bollocks: ");
+	//mutex_lock(&sbi->s_lock);
+	for(i =0 ;i < 100000;i++);
+	printk("Back in the 90s i was in a famous tv show!\n");
+	//for(i = 0; i<block_set->total_blocks; i++)
+	//	__pmfs_free_block(sb, block_set->blocks[i], block_set->i_blk_type,NULL);
+	
+	//mutex_unlock(&sbi->s_lock);
+
+	//pmfs_free_transaction(trans);
+	//vfree(data);
+	printk("Exiting Free blocks \n");
+	return 0;
+}
+
+pmfs_free_block_request_t *init_request(struct super_block *sb,
+		pmfs_transaction_t *trans){
+	pmfs_free_block_request_t *request = vmalloc(sizeof(pmfs_free_block_request_t));
+	request->trans_t = trans;
+	request->sb_t = sb;
+	return request;
 }
 
 int pmfs_commit_transaction(struct super_block *sb,
 		pmfs_transaction_t *trans)
 {
-	
+	struct task_struct *tsk;
 	if (trans == NULL)
 		return 0;
 	/* Add the commit log-entry */
@@ -848,11 +875,21 @@ int pmfs_commit_transaction(struct super_block *sb,
 	pmfs_dbg_trans("completing transaction for id %d\n",
 		trans->transaction_id);
 
-	
-	pmfs_free_trans_blocks(sb,trans->free_blocks);
-
 	current->journal_info = trans->parent;
-	pmfs_free_transaction(trans);
+
+	if(trans->free_blocks){
+		tsk = kthread_run(pmfs_free_trans_blocks, init_request(sb,trans),
+			"power slave");
+		if (IS_ERR(tsk)) {
+			/* failure at boot is fatal */
+			printk(sb, "Failed to start pmfs cow block cleaner thread\n");
+			pmfs_err(sb, "Failed to start pmfs cow block cleaner thread\n");
+			return -1;
+		}
+	}
+	else
+		pmfs_free_transaction(trans);
+	printk("Exiting commit transaction \n");
 	return 0;
 }
 

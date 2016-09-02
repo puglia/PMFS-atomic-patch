@@ -183,16 +183,6 @@ static loff_t pmfs_llseek(struct file *file, loff_t offset, int origin)
 	return offset;
 }
 
-inline int pmfs_sync_commit(struct super_block *sb, pmfs_transaction_t *trans){
-	struct pmfs_sb_info *sbi = PMFS_SB(sb);
-	int ret = 0;
-	mutex_lock(&sbi->s_lock);
-	ret = pmfs_commit_transaction(sb, trans);
-	mutex_unlock(&sbi->s_lock);
-
-	return ret;	
-}
-
 inline int pmfs_sync_abort(struct super_block *sb, pmfs_transaction_t *trans){
 	struct pmfs_sb_info *sbi = PMFS_SB(sb);
 	int ret = 0;
@@ -237,33 +227,6 @@ static int pmfs_writeback(struct page *page, struct address_space *mapping, int 
 	return 0;
 }
 
-pmfs_block_set_t *pmfs_init_block_set_alt(pmfs_transaction_t *trans, unsigned short btype){
-	pmfs_block_set_t *blk_set;
-	blk_set = kmalloc(sizeof(pmfs_block_set_t), GFP_NOFS);
-	blk_set->blocks = kmalloc((trans->num_entries * sizeof(unsigned long)) - 2, GFP_NOFS );
-	blk_set->total_blocks = 0;
-	blk_set->i_blk_type = btype;
-	blk_set->i_opt = 1;
-	trans->free_blocks = blk_set;
-	printk("Alternative block allocator \n");
-	return blk_set;
-}
-
-pmfs_transaction_t *pmfs_new_cow_transaction_alt(struct super_block *sb,
-		int max_log_entries, unsigned short btype){
-
-	pmfs_transaction_t *trans;
-
-	trans = pmfs_new_transaction(sb, max_log_entries);
-	if (IS_ERR(trans)) 
-		goto out;
-
-	pmfs_init_block_set_alt(trans, btype);
-out:
-	return trans;
-	
-}
-
 static int pmfs_cow_sync(struct file *filp, struct inode *inode, loff_t start, loff_t end, int datasync){
 
 	struct mm_struct *mm = current->mm;
@@ -292,11 +255,7 @@ static int pmfs_cow_sync(struct file *filp, struct inode *inode, loff_t start, l
 	//if (max_logentries > MAX_METABLOCK_LENTRIES)
 	//	max_logentries = MAX_METABLOCK_LENTRIES;
 
-	printk("datasync %d \n", datasync);
-	if(!(datasync == 16))
-		trans = pmfs_new_cow_transaction(sb,MAX_INODE_LENTRIES + max_logentries, pi->i_blk_type);
-	else
-		trans = pmfs_new_cow_transaction_alt(sb,MAX_INODE_LENTRIES + max_logentries, pi->i_blk_type);
+	trans = pmfs_new_cow_transaction(sb,MAX_INODE_LENTRIES + max_logentries, pi->i_blk_type);
 
 	if (IS_ERR(trans)) {
 		ret = PTR_ERR(trans);
@@ -397,7 +356,7 @@ writeback:
 				goto out;
 		}
 
-	pmfs_sync_commit(sb, trans);
+	pmfs_commit_transaction(sb, trans);
 out:
 	if(pte_list)
 		vfree(pte_list);
