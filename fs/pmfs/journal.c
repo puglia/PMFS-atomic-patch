@@ -652,7 +652,7 @@ int pmfs_add_logentry(struct super_block *sb,
 	int num_les = 0, i;
 	uint64_t le_start = size ? pmfs_get_addr_off(sbi, addr) : 0;
 	uint8_t le_size;
-
+	return 0;
 	if (trans == NULL)
 		return -EINVAL;
 	le = trans->start_addr + trans->num_used;
@@ -671,7 +671,7 @@ int pmfs_add_logentry(struct super_block *sb,
 	/*printk("add le id %d size %x, num_les %d tail %x le %p\n",
 		trans->transaction_id, size, trans->num_entries,
 		trans->num_used, le);*/
-
+	
 	if ((trans->num_used + num_les) > trans->num_entries) {
 		pmfs_err(sb, "Log Entry full. tid %x ne %x tail %x size %x\n",
 			trans->transaction_id, trans->num_entries,

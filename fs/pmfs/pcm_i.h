@@ -10,11 +10,11 @@
 #define BLOCK_ADDR(addr) ( (pcm_word_t *) (((pcm_word_t) (addr)) & ~(CACHELINE_SIZE - 1)) )
 #define INDEX_ADDR(addr) ( (pcm_word_t *) (((pcm_word_t) (addr)) & (CACHELINE_SIZE - 1)) )
 
-#define M_PCM_LATENCY_WRITE 30//150
+#define M_PCM_LATENCY_WRITE 150
 
 #define M_PCM_BANDWIDTH_MB 1200
 
-#define DRAM_BANDWIDTH_MB 7000
+#define DRAM_BANDWIDTH_MB 5000
 
 #define M_PCM_CPUFREQ 3000
 
