@@ -119,10 +119,10 @@ int pmfs_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf){
 void pmfs_close_mapping(struct vm_area_struct *vma){
 	struct address_space *mapping = vma->vm_file->f_mapping;
 	struct inode *inode = mapping->host;
-
+	printk("Closing Mapping \n");
 	if(!(vma->vm_flags & VM_ATOMIC))
 		return;
-
+	printk("Ending Atomic Mapping \n");
 	finish_atm_mapping(inode, 1);
 }
 
@@ -189,7 +189,6 @@ __pmfs_xip_file_write(struct address_space *mapping, const char __user *buf,
 	 	 * __copy_from_user_inatomic_nocache uses cacheable instructions
 	 	 * (instead of movnti) to write. So flush those cachelines. */
 		pmfs_flush_edge_cachelines(pos, copied, xmem + offset);
-
 		emulate_latency(copied);
 
         	if (likely(copied > 0)) {
@@ -239,6 +238,7 @@ static ssize_t pmfs_file_write_fast(struct super_block *sb, struct inode *inode,
 	pmfs_xip_mem_protect(sb, xmem + offset, count, 0);
 
 	pmfs_flush_edge_cachelines(pos, copied, xmem + offset);
+	emulate_latency(copied);
 
 	if (likely(copied > 0)) {
 		pos += copied;
@@ -322,7 +322,6 @@ ssize_t pmfs_xip_file_write(struct file *filp, const char __user *buf,
 
 	sb_start_write(inode->i_sb);
 	mutex_lock(&inode->i_mutex);
-
 	if (!access_ok(VERIFY_READ, buf, len)) {
 		ret = -EFAULT;
 		goto out;
@@ -347,7 +346,6 @@ ssize_t pmfs_xip_file_write(struct file *filp, const char __user *buf,
 	end_blk = start_blk + num_blocks - 1;
 
 	block = pmfs_find_data_block(inode, start_blk);
-
 	/* Referring to the inode's block size, not 4K */
 	same_block = (((count + offset - 1) >>
 			pmfs_inode_blk_shift(pi)) == 0) ? 1 : 0;
@@ -359,7 +357,6 @@ ssize_t pmfs_xip_file_write(struct file *filp, const char __user *buf,
 	max_logentries = num_blocks / MAX_PTRS_PER_LENTRY + 2;
 	if (max_logentries > MAX_METABLOCK_LENTRIES)
 		max_logentries = MAX_METABLOCK_LENTRIES;
-
 	trans = pmfs_new_transaction(sb, MAX_INODE_LENTRIES + max_logentries);
 	if (IS_ERR(trans)) {
 		ret = PTR_ERR(trans);
@@ -393,7 +390,6 @@ ssize_t pmfs_xip_file_write(struct file *filp, const char __user *buf,
 	/* now zero out the edge blocks which will be partially written */
 	pmfs_clear_edge_blk(sb, pi, new_sblk, start_blk, offset, false);
 	pmfs_clear_edge_blk(sb, pi, new_eblk, end_blk, eblk_offset, true);
-
 	written = __pmfs_xip_file_write(mapping, buf, count, pos, ppos);
 	if (written < 0 || written != count)
 		pmfs_dbg_verbose("write incomplete/failed: written %ld len %ld"
@@ -777,8 +773,10 @@ int pmfs_xip_file_mmap(struct file *file, struct vm_area_struct *vma)
 
 	vma->vm_flags |= VM_MIXEDMAP;
 
-	if(vma->vm_flags & VM_ATOMIC)
+	if(vma->vm_flags & VM_ATOMIC){
+		printk("New Mapping \n");
 		new_atm_mapping(file->f_mapping->host);
+	}
 
 	block_sz = pmfs_data_block_size(vma, vma->vm_start, 0);
 	if (pmfs_has_huge_mmap(file->f_mapping->host->i_sb) &&

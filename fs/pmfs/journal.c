@@ -50,7 +50,7 @@ void remove_atm_mapping(pid_t pid, u64 ino){
 	int i;
 	for(i =0; i<MAX_ATOMIC_MAPPINGS; i++)
 		if(atomic_maps[i] != NULL && atomic_maps[i]->owner == pid && atomic_maps[i]->inode_n == ino){
-			kfree(atomic_maps[i]);
+			vfree(atomic_maps[i]);
 			atomic_maps[i] = NULL;
 			break;
 		}
@@ -64,7 +64,7 @@ void new_atm_mapping(struct inode *inode){
 
 	pi = pmfs_get_inode(sb, inode->i_ino); 
 
-	atm_mapping = kmalloc(sizeof(pmfs_atomic_mapping_t),GFP_NOFS);
+	atm_mapping = vmalloc(sizeof(pmfs_atomic_mapping_t));
 	atm_mapping->owner = current->pid;
 	atm_mapping->inode_n	= inode->i_ino;
 	atm_mapping->trans_t = pmfs_new_cow_transaction(sb,pi->i_blocks,pi->i_blk_type);
@@ -901,7 +901,16 @@ int pmfs_abort_transaction(struct super_block *sb, pmfs_transaction_t *trans)
 	/* add a abort log entry */
 	pmfs_add_logentry(sb, trans, NULL, 0, LE_ABORT);
 	current->journal_info = trans->parent;
-	pmfs_free_transaction(trans);
+	
+	if(trans->free_blocks && trans->free_blocks->total_blocks > 0){
+		enqueue_request(init_request(sb,trans));
+		wakeup_log_cleaner(PMFS_SB(sb));
+		//pmfs_free_trans_blocks((void *) init_request(sb,trans));
+		
+	}
+	else
+		pmfs_free_transaction(trans);
+	
 	return 0;
 }
 

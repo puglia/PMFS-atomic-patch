@@ -717,10 +717,11 @@ static int rec_cow_block(pmfs_transaction_t *trans,
 
 			//__pmfs_free_block(sb, old_blk, pi->i_blk_type,NULL);
 			errval = pmfs_add_block_to_free(trans,old_blk);
-
-			if(errval < 0)
-				goto fail;
 			
+			if(errval < 0){
+				printk("error freeing block...\n");
+				goto fail;
+			}
 			pmfs_memunlock_block(sb, node);
 			node[index] = cpu_to_le64(pmfs_get_block_off(sb,
 						new_blk, pi->i_blk_type));
