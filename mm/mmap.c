@@ -1267,8 +1267,11 @@ unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
 			return -EAGAIN;
 	}
 	
-	if(!(prot & PROT_WRITE))
+	/*if(!(prot & PROT_WRITE) && (flags & (MAP_XIP_COW | MAP_ATOMIC))){
 		flags &= ~(MAP_XIP_COW | MAP_ATOMIC);
+		flags |= MAP_SHARED;
+		is_xip_cow = 0;
+	}*/
 	
 	//if(is_xip_cow)
 	//	printk(KERN_NOTICE "XIP_COW - mmap called with flags %lu\n", flags);

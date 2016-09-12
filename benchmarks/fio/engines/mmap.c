@@ -22,12 +22,14 @@
  */
 #define MMAP_TOTAL_SZ	(1 * 1024 * 1024 * 1024UL)
 
-#define MAP_XIP_COW 0x04
+#define MAP_XIP_COW 	0x04
+#define MAP_ATOMIC	0x08
 
 #define XIP_COW 1
+#define FLUSH_CACHE 0
 #define TIME_CONT 0
-#define WRITES_BEFORE_MSYNC 6
-#define MILLIS_BEFORE_MSYNC 5000
+#define WRITES_BEFORE_MSYNC 2
+#define MILLIS_BEFORE_MSYNC 4000
 
 static unsigned long mmap_map_size;
 static unsigned long mmap_map_mask;
@@ -46,10 +48,12 @@ static int fio_mmap_file(struct thread_data *td, struct fio_file *f,
 			flags |= PROT_READ;
 	} else
 		flags = PROT_READ;
+
 	if(f->mmap_ptr == NULL)
-		f->mmap_ptr = mmap(NULL, length, flags, XIP_COW?MAP_XIP_COW:MAP_SHARED, f->fd, off);
+		f->mmap_ptr = mmap(NULL, length, flags, XIP_COW == 1?MAP_XIP_COW:XIP_COW == 2?MAP_ATOMIC:MAP_SHARED, f->fd, off);
 
 	if (f->mmap_ptr == MAP_FAILED) {
+		printf("No more tears!\n");
 		f->mmap_ptr = NULL;
 		td_verror(td, errno, "mmap");
 		goto err;
@@ -147,7 +151,7 @@ static int should_msync(){
 	ftime(&start);
 	return 1;
 }
-
+int peace = 0;
 static int fio_mmapio_prep(struct thread_data *td, struct io_u *io_u)
 {
 	struct fio_file *f = io_u->file;
@@ -155,6 +159,13 @@ static int fio_mmapio_prep(struct thread_data *td, struct io_u *io_u)
 	/*
 	 * It fits within existing mapping, use it
 	 */
+	/*if(peace >= 100000){
+		peace = 0;
+		printf("offset %llx        \n",io_u->offset);
+		printf("file size %llx          \n",f->mmap_sz);
+	}
+	else
+		peace++;*/
 	if (io_u->offset >= f->mmap_off &&
 	    io_u->offset + io_u->buflen < f->mmap_off + f->mmap_sz)
 		goto done;
@@ -162,8 +173,9 @@ static int fio_mmapio_prep(struct thread_data *td, struct io_u *io_u)
 	/*
 	 * unmap any existing mapping
 	 */
-	if (f->mmap_ptr && should_msync() && !(io_u->ddir == DDIR_READ)) {
+	if (f->mmap_ptr && should_msync() ) {
 		ftime(&start_ms);
+		//printf("MSYNC          \n");
 		if (msync(f->mmap_ptr, f->mmap_sz, MS_SYNC | 0x008 )) {
 			io_u->error = errno;
 			td_verror(td, io_u->error, "msync");
@@ -205,15 +217,15 @@ static int fio_mmapio_queue(struct thread_data *td, struct io_u *io_u)
 	else if (io_u->ddir == DDIR_WRITE){
 		ftime(&start_wr);
 		memcpy(io_u->mmap_data, io_u->xfer_buf, io_u->xfer_buflen);
-		//printf("Address: %llx\n",io_u->mmap_data);
-		if(!XIP_COW)
+		if(FLUSH_CACHE)		
+			pmfs_flush_buffer(io_u->mmap_data, io_u->xfer_buflen, 1);
+		if(XIP_COW != 1)
 			emulate_latency(io_u->xfer_buflen);
-
 		ftime(&stop_wr);
 		total_wr += ((stop_wr.time * 1000) + stop_wr.millitm) - ((start_wr.time*1000) + start_wr.millitm);
 	}
 	else if (ddir_sync(io_u->ddir)){	
-		/*if (msync(f->mmap_ptr, f->mmap_sz, MS_SYNC | 0x008)) {
+		/*if (msync(f->mmap_ptr, f->mmap_sz, MS_SYNC | 0x010)) {
 			io_u->error = errno;
 			td_verror(td, io_u->error, "msync");
 			printf("msync error\n");

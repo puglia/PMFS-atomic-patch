@@ -3,6 +3,7 @@
 
 #define _PCM_INTERNAL_H
 
+#define CACHELINE_SIZE  (64)
 
 #define NS2CYCLE(__ns) ((__ns) * M_PCM_CPUFREQ / 1000)
 #define CYCLE2NS(__cycles) ((__cycles) * 1000 / M_PCM_CPUFREQ)
@@ -177,4 +178,17 @@ emulate_latency_ns(int ns)
 	//spin_unlock(&pcm_lock);
 }
 
+static inline void pmfs_flush_buffer(void *buf, uint32_t len, int fence)
+{
+	uint32_t i;
+	len = len + ((unsigned long)(buf) & (CACHELINE_SIZE - 1));
+	for (i = 0; i < len; i += CACHELINE_SIZE)
+		asm volatile ("clflush %0\n" : "+m" (*(char *)(buf+i)));
+	/* Do a fence only if asked. We often don't need to do a fence
+	 * immediately after clflush because even if we get context switched
+	 * between clflush and subsequent fence, the context switch operation
+	 * provides implicit fence. */
+	if (fence)
+		asm volatile ("sfence\n" : : );
+}
 
