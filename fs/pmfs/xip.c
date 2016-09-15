@@ -41,11 +41,14 @@ static int log_new_block(pmfs_transaction_t *trans,
 						new_block, pi->i_blk_type));
 			//printk("XIP_ATOMIC - new_blk %llx!\n",new_blk);
 			le_size = sizeof(__le64);
-			__pmfs_add_logentry(sb, trans, &new_blk,height?&node[index]:&pi->root,
+			errval = __pmfs_add_logentry(sb, trans, &new_blk,height?&node[index]:&pi->root,
 				le_size, LE_DATA);
-
+			
+			if(errval < 0)
+				goto fail;
+			//printk("Securing block %lx\n",node[index]);
+			
 			errval = pmfs_add_block_to_free(trans,new_block);
-
 			if(errval < 0)
 				goto fail;
 	}  else {
@@ -119,10 +122,10 @@ int pmfs_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf){
 void pmfs_close_mapping(struct vm_area_struct *vma){
 	struct address_space *mapping = vma->vm_file->f_mapping;
 	struct inode *inode = mapping->host;
-	printk("Closing Mapping \n");
+
 	if(!(vma->vm_flags & VM_ATOMIC))
 		return;
-	printk("Ending Atomic Mapping \n");
+	
 	finish_atm_mapping(inode, 1);
 }
 

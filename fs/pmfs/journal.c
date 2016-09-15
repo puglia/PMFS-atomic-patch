@@ -72,7 +72,7 @@ void new_atm_mapping(struct inode *inode){
 	printk("Owner: %d  inode %d  \n",current->pid,inode->i_ino);
 	for(i =0; i<MAX_ATOMIC_MAPPINGS; i++)
 		if(!atomic_maps[i]){
-			printk("POS: %d\n",i);
+			
 			atomic_maps[i] = atm_mapping;
 			break;
 	}
@@ -99,11 +99,11 @@ void finish_atm_mapping(struct inode *inode, int rollback){
 	pmfs_atomic_mapping_t *mapping;
 
 	pi = pmfs_get_inode(sb, inode->i_ino);
-
+	
 	mapping = get_atm_mapping(current->pid, inode->i_ino);
 	if(!mapping)
 		return;
-
+	printk("Ending Atomic Mapping \n");
 	if(rollback)
 		pmfs_abort_transaction(sb, mapping->trans_t);
 	else
@@ -183,14 +183,24 @@ static void pmfs_undo_transaction(struct super_block *sb,
 {
 	pmfs_logentry_t *le;
 	int i;
+	char *data;
 	uint16_t gen_id = trans->gen_id;
-
+	struct pmfs_sb_info *sbi = PMFS_SB(sb);
 	le = trans->start_addr + trans->num_used;
 	le--;
+	//mutex_lock(&sbi->s_lock);
+	//struct pmfs_blocknode *hint = NULL;
+	//pmfs_block_set_t *block_set = trans->free_blocks;
+	
 	for (i = trans->num_used - 1; i >= 0; i--, le--) {
+		//printk("Freeing block %lx\n",*data);
+		//data = pmfs_get_block(sb, le64_to_cpu(le->addr_offset));
+		//__pmfs_free_block(sb, *data, block_set->i_blk_type,&hint);
+		
 		if (gen_id == le16_to_cpu(le->gen_id))
 			pmfs_undo_logentry(sb, le);
 	}
+	//mutex_unlock(&sbi->s_lock);
 }
 
 /* can be called by either during log cleaning or during journal recovery */
@@ -758,7 +768,6 @@ int __pmfs_add_logentry(struct super_block *sb,
 	int num_les = 0, i;
 	uint64_t le_start = size ? (pmfs_get_addr_off(sbi, addr_offset?addr_offset:addr)) : 0;
 	uint8_t le_size;
-	return 0;
 	if (trans == NULL)
 		return -EINVAL;
 	le = trans->start_addr + trans->num_used;
@@ -773,10 +782,6 @@ int __pmfs_add_logentry(struct super_block *sb,
 	pmfs_dbg_trans("add le id %d size %x, num_les %d tail %x le %p\n",
 		trans->transaction_id, size, trans->num_entries,
 		trans->num_used, le);
-
-	/*printk("add le id %d size %x, num_les %d tail %x le %p\n",
-		trans->transaction_id, size, trans->num_entries,
-		trans->num_used, le);*/
 	
 	if ((trans->num_used + num_les) > trans->num_entries) {
 		pmfs_err(sb, "Log Entry full. tid %x ne %x tail %x size %x\n",
@@ -801,7 +806,6 @@ int __pmfs_add_logentry(struct super_block *sb,
 		if (i == 0 && trans->num_used == 0)
 			le->type |= LE_START;
 		trans->num_used++;
-
 		/* handle special log entry */
 		if (i == (num_les - 1) && (type & LE_COMMIT)) {
 			pmfs_commit_logentry(sb, trans, le);
@@ -883,7 +887,7 @@ int pmfs_commit_transaction(struct super_block *sb,
 int pmfs_abort_transaction(struct super_block *sb, pmfs_transaction_t *trans)
 {
 	struct pmfs_sb_info *sbi = PMFS_SB(sb);
-
+	printk("Aborting Transaction!\n");
 	if (trans == NULL)
 		return 0;
 	pmfs_dbg_trans("abort trans for tid %x sa %p numle %d tail %x gen %d\n",
@@ -902,14 +906,14 @@ int pmfs_abort_transaction(struct super_block *sb, pmfs_transaction_t *trans)
 	pmfs_add_logentry(sb, trans, NULL, 0, LE_ABORT);
 	current->journal_info = trans->parent;
 	
-	if(trans->free_blocks && trans->free_blocks->total_blocks > 0){
+	/*if(trans->free_blocks && trans->free_blocks->total_blocks > 0){
 		enqueue_request(init_request(sb,trans));
 		wakeup_log_cleaner(PMFS_SB(sb));
 		//pmfs_free_trans_blocks((void *) init_request(sb,trans));
 		
 	}
-	else
-		pmfs_free_transaction(trans);
+	else*/
+	pmfs_free_transaction(trans);
 	
 	return 0;
 }
