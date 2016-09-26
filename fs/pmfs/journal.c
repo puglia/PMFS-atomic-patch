@@ -59,17 +59,18 @@ void remove_atm_mapping(pid_t pid, u64 ino){
 void new_atm_mapping(struct inode *inode){
 	struct super_block *sb = inode->i_sb;
 	struct pmfs_inode *pi;
-	int i;
+	int i,nblocks;
 	pmfs_atomic_mapping_t *atm_mapping;
 
 	pi = pmfs_get_inode(sb, inode->i_ino); 
+	nblocks = (inode->i_size >> sb->s_blocksize_bits) + 1;
 
 	atm_mapping = vmalloc(sizeof(pmfs_atomic_mapping_t));
 	atm_mapping->owner = current->pid;
 	atm_mapping->inode_n	= inode->i_ino;
-	atm_mapping->trans_t = pmfs_new_cow_transaction(sb,pi->i_blocks,pi->i_blk_type);
-
-	printk("Owner: %d  inode %d  \n",current->pid,inode->i_ino);
+	atm_mapping->trans_t = pmfs_new_cow_transaction(sb,nblocks,pi->i_blk_type);
+	
+	printk("Owner: %d  inode %d  blocks %d size%ld \n",current->pid,inode->i_ino,nblocks,inode->i_size );
 	for(i =0; i<MAX_ATOMIC_MAPPINGS; i++)
 		if(!atomic_maps[i]){
 			
@@ -165,12 +166,14 @@ static inline void pmfs_undo_logentry(struct super_block *sb,
 	pmfs_logentry_t *le)
 {
 	char *data;
-
+	
 	if (le->size > 0) {
 		data = pmfs_get_block(sb, le64_to_cpu(le->addr_offset));
 		/* Undo changes by flushing the log entry to pmfs */
 		pmfs_memunlock_range(sb, data, le->size);
+		
 		memcpy(data, le->data, le->size);
+		printk("le data : %llx size: %d addr: %llx\n",*data, le->size, data);
 		pmfs_memlock_range(sb, data, le->size);
 		pmfs_flush_buffer(data, le->size, false);
 	}
@@ -183,24 +186,24 @@ static void pmfs_undo_transaction(struct super_block *sb,
 {
 	pmfs_logentry_t *le;
 	int i;
-	char *data;
+	__le64 *data;
 	uint16_t gen_id = trans->gen_id;
 	struct pmfs_sb_info *sbi = PMFS_SB(sb);
 	le = trans->start_addr + trans->num_used;
 	le--;
-	//mutex_lock(&sbi->s_lock);
-	//struct pmfs_blocknode *hint = NULL;
-	//pmfs_block_set_t *block_set = trans->free_blocks;
+	mutex_lock(&sbi->s_lock);
+	struct pmfs_blocknode *hint = NULL;
+	pmfs_block_set_t *block_set = trans->free_blocks;
 	
 	for (i = trans->num_used - 1; i >= 0; i--, le--) {
-		//printk("Freeing block %lx\n",*data);
 		//data = pmfs_get_block(sb, le64_to_cpu(le->addr_offset));
-		//__pmfs_free_block(sb, *data, block_set->i_blk_type,&hint);
+		//__pmfs_free_block(sb, pmfs_get_blocknr(sb, *data,
+		//		    block_set->i_blk_type), block_set->i_blk_type,&hint);
 		
 		if (gen_id == le16_to_cpu(le->gen_id))
 			pmfs_undo_logentry(sb, le);
 	}
-	//mutex_unlock(&sbi->s_lock);
+	mutex_unlock(&sbi->s_lock);
 }
 
 /* can be called by either during log cleaning or during journal recovery */
@@ -771,7 +774,7 @@ int __pmfs_add_logentry(struct super_block *sb,
 	if (trans == NULL)
 		return -EINVAL;
 	le = trans->start_addr + trans->num_used;
-
+	
 	if (size == 0) {
 		/* At least one log entry required for commit/abort log entry */
 		if ((type & LE_COMMIT) || (type & LE_ABORT))
@@ -887,7 +890,6 @@ int pmfs_commit_transaction(struct super_block *sb,
 int pmfs_abort_transaction(struct super_block *sb, pmfs_transaction_t *trans)
 {
 	struct pmfs_sb_info *sbi = PMFS_SB(sb);
-	printk("Aborting Transaction!\n");
 	if (trans == NULL)
 		return 0;
 	pmfs_dbg_trans("abort trans for tid %x sa %p numle %d tail %x gen %d\n",

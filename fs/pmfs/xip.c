@@ -39,14 +39,15 @@ static int log_new_block(pmfs_transaction_t *trans,
 			
 			new_blk = cpu_to_le64(pmfs_get_block_off(sb,
 						new_block, pi->i_blk_type));
-			//printk("XIP_ATOMIC - new_blk %llx!\n",new_blk);
+			printk("XIP_ATOMIC - new_block %llx!\n",new_blk);
+			printk("XIP_ATOMIC - node + index %llx!\n",&node[index]);
+			printk("XIP_ATOMIC - node[index] %llx!\n",node[index]);
 			le_size = sizeof(__le64);
 			errval = __pmfs_add_logentry(sb, trans, &new_blk,height?&node[index]:&pi->root,
 				le_size, LE_DATA);
 			
 			if(errval < 0)
 				goto fail;
-			//printk("Securing block %lx\n",node[index]);
 			
 			errval = pmfs_add_block_to_free(trans,new_block);
 			if(errval < 0)
@@ -77,6 +78,10 @@ int pmfs_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf){
 	unsigned long xip_pfn;
 	unsigned long blocknr;
 	int err;
+	unsigned int data_bits = blk_type_to_shift[pi->i_blk_type];
+	unsigned int blk_shift;
+
+	blk_shift = data_bits - sb->s_blocksize_bits;
 	
 	atm = get_atm_mapping(current->pid, inode->i_ino);
 	if(!atm)
@@ -92,7 +97,7 @@ int pmfs_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf){
 		return VM_FAULT_SIGBUS;
 	}
 
-	err = pmfs_get_xip_mem(mapping, vmf->pgoff, 1, &xip_mem, &xip_pfn);
+	err = pmfs_get_xip_mem(mapping, vmf->pgoff, 0, &xip_mem, &xip_pfn);
 	if (unlikely(err)) {
 		pmfs_dbg("[%s:%d] get_xip_mem failed(OOM). vm_start(0x%lx),"
 			" vm_end(0x%lx), pgoff(0x%lx), VA(%lx)\n",
@@ -112,8 +117,8 @@ int pmfs_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf){
 
 	emulate_latency(PAGE_CACHE_SIZE - remain);
 	//printk("XIP_ATOMIC   latency %ld \n",PAGE_CACHE_SIZE - remain);
-	//printk("XIP_ATOMIC   accessed block: %llx   new block %llx \n",vmf->pgoff,blocknr);
-
+	printk("XIP_ATOMIC   accessed block: %llx   new block %llx \n",vmf->pgoff,blocknr);
+	
 	log_new_block(trans, sb, pi, vmf->pgoff, pi->root,pi->height, blocknr);
 
 	return 0;
@@ -777,7 +782,7 @@ int pmfs_xip_file_mmap(struct file *file, struct vm_area_struct *vma)
 	vma->vm_flags |= VM_MIXEDMAP;
 
 	if(vma->vm_flags & VM_ATOMIC){
-		printk("New Mapping \n");
+		//printk("New Mapping \n");
 		new_atm_mapping(file->f_mapping->host);
 	}
 

@@ -606,6 +606,8 @@ static int recursive_alloc_blocks(pmfs_transaction_t *trans,
 			if (node[i] == 0) {
 				errval = pmfs_new_data_block(sb, pi, &blocknr,
 							zero);
+				printk("INDEX: %d\n",i);
+				printk("node + index: %llx\n",&node[i]);
 				if (errval) {
 					pmfs_dbg_verbose("alloc data blk failed"
 						" %d\n", errval);
@@ -711,7 +713,10 @@ static int rec_cow_block(pmfs_transaction_t *trans,
 			pmfs_add_logentry(sb, trans, &node[index],
 				le_size, LE_DATA);
 			//printk("XIP_COW - rec_alloc_blocks - journaled!\n");
-
+			printk("XIP_COW - blocknr %llx!\n",cpu_to_le64(pmfs_get_block_off(sb,
+						new_blk, pi->i_blk_type)));
+			printk("XIP_COW - node[index] %llx!\n",node[index]);
+			printk("XIP_COW - node + index %llx!\n",&node[index]);
 			old_blk = pmfs_get_blocknr(sb, le64_to_cpu(node[index]),
 				    pi->i_blk_type);
 
@@ -758,9 +763,9 @@ int __pmfs_alloc_blocks(pmfs_transaction_t *trans, struct super_block *sb,
 	pmfs_dbg_verbose("alloc_blocks height %d file_blocknr %lx num %x, "
 		   "first blocknr 0x%lx, last_blocknr 0x%lx\n",
 		   pi->height, file_blocknr, num, first_blocknr, last_blocknr);
-	//printk("alloc_blocks height %d file_blocknr %lx num %x, "
-	//	   "first blocknr 0x%lx, last_blocknr 0x%lx\n",
-	//	   pi->height, file_blocknr, num, first_blocknr, last_blocknr);
+	printk("alloc_blocks height %d file_blocknr %lx num %x, "
+		   "first blocknr 0x%lx, last_blocknr 0x%lx\n",
+		   pi->height, file_blocknr, num, first_blocknr, last_blocknr);
 
 	height = pi->height;
 
@@ -857,7 +862,10 @@ int pmfs_cow_block(pmfs_transaction_t *trans, struct super_block *sb,
 	/* Go forward only if the height of the tree is non-zero. */
 	if (height == 0)
 		return 0;
-	errval = rec_cow_block(trans, sb, pi, pi->root, height,blocknr);
+	printk("XIP_COW - file_blocknr:%llx \n",file_blocknr);
+	printk("XIP_COW - blk_shift:%llx \n",blk_shift);
+	printk("XIP_COW - blocknr:%llx \n",blocknr);
+	errval = rec_cow_block(trans, sb, pi, pi->root, height,file_blocknr);
 	if (errval < 0)
 		goto fail;
 	
