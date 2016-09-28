@@ -10,6 +10,10 @@
  * warranty of any kind, whether express or implied.
  */
 
+#define BLK_CREATE_BLOCK 1
+#define BLK_USE_NEW_TRANS 2
+
+
 int pmfs_get_xip_mem(struct address_space *, pgoff_t, int, void **,
 		      unsigned long *);
 ssize_t pmfs_xip_file_read(struct file *filp, char __user *buf, size_t len,

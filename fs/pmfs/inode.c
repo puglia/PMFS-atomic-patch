@@ -93,7 +93,7 @@ u64 pmfs_find_data_block(struct inode *inode, unsigned long file_blocknr)
 	blk_shift = data_bits - sb->s_blocksize_bits;
 	blk_offset = file_blocknr & ((1 << blk_shift) - 1);
 	blocknr = file_blocknr >> blk_shift;
-
+	//printk("find block  -  blocknr: %d  blk_offset: %d  blk_shift:%d\n",blocknr,blk_offset,blk_shift);
 	if (blocknr >= (1UL << (pi->height * meta_bits)))
 		return 0;
 
@@ -713,11 +713,11 @@ static int rec_cow_block(pmfs_transaction_t *trans,
 			pmfs_add_logentry(sb, trans, &node[index],
 				le_size, LE_DATA);
 			//printk("XIP_COW - rec_alloc_blocks - journaled!\n");
-			printk("XIP_COW - blocknr %llx!\n",cpu_to_le64(pmfs_get_block_off(sb,
+			/**printk("XIP_COW - blocknr %llx!\n",cpu_to_le64(pmfs_get_block_off(sb,
 						new_blk, pi->i_blk_type)));
 			printk("XIP_COW - node[index] %llx!\n",node[index]);
 			printk("XIP_COW - node + index %llx!\n",&node[index]);
-			old_blk = pmfs_get_blocknr(sb, le64_to_cpu(node[index]),
+			*/old_blk = pmfs_get_blocknr(sb, le64_to_cpu(node[index]),
 				    pi->i_blk_type);
 
 			//__pmfs_free_block(sb, old_blk, pi->i_blk_type,NULL);
@@ -763,19 +763,18 @@ int __pmfs_alloc_blocks(pmfs_transaction_t *trans, struct super_block *sb,
 	pmfs_dbg_verbose("alloc_blocks height %d file_blocknr %lx num %x, "
 		   "first blocknr 0x%lx, last_blocknr 0x%lx\n",
 		   pi->height, file_blocknr, num, first_blocknr, last_blocknr);
-	printk("alloc_blocks height %d file_blocknr %lx num %x, "
-		   "first blocknr 0x%lx, last_blocknr 0x%lx\n",
-		   pi->height, file_blocknr, num, first_blocknr, last_blocknr);
 
 	height = pi->height;
 
 	blk_shift = height * meta_bits;
 
 	max_blocks = 0x1UL << blk_shift;
-
+	//printk("last_blocknr : %d   max_blocks: %d\n",last_blocknr, max_blocks);
 	if (last_blocknr > max_blocks - 1) {
 		/* B-tree height increases as a result of this allocation */
+		//printk("blk_shift: %d \n",blk_shift);
 		total_blocks = last_blocknr >> blk_shift;
+		//printk("total_blocks : %d\n",total_blocks);
 		while (total_blocks > 0) {
 			total_blocks = total_blocks >> meta_bits;
 			height++;
@@ -862,10 +861,10 @@ int pmfs_cow_block(pmfs_transaction_t *trans, struct super_block *sb,
 	/* Go forward only if the height of the tree is non-zero. */
 	if (height == 0)
 		return 0;
-	printk("XIP_COW - file_blocknr:%llx \n",file_blocknr);
+	/*printk("XIP_COW - file_blocknr:%llx \n",file_blocknr);
 	printk("XIP_COW - blk_shift:%llx \n",blk_shift);
 	printk("XIP_COW - blocknr:%llx \n",blocknr);
-	errval = rec_cow_block(trans, sb, pi, pi->root, height,file_blocknr);
+	*/errval = rec_cow_block(trans, sb, pi, pi->root, height,file_blocknr);
 	if (errval < 0)
 		goto fail;
 	
@@ -1199,7 +1198,7 @@ static int pmfs_increase_inode_table_size(struct super_block *sb)
 	struct pmfs_inode *pi = pmfs_get_inode_table(sb);
 	pmfs_transaction_t *trans;
 	int errval;
-
+	//printk("Increasing inode table size\n");
 	/* 1 log entry for inode-table inode, 1 lentry for inode-table b-tree */
 	trans = pmfs_new_transaction(sb, MAX_INODE_LENTRIES);
 	if (IS_ERR(trans))
@@ -1633,7 +1632,7 @@ int pmfs_notify_change(struct dentry *dentry, struct iattr *attr)
 	pmfs_transaction_t *trans;
 	int ret;
 	unsigned int ia_valid = attr->ia_valid, attr_mask;
-
+	
 	if (!pi)
 		return -EACCES;
 
@@ -1643,10 +1642,11 @@ int pmfs_notify_change(struct dentry *dentry, struct iattr *attr)
 
 	if ((ia_valid & ATTR_SIZE) && (attr->ia_size != inode->i_size ||
 			pi->i_flags & cpu_to_le32(PMFS_EOFBLOCKS_FL))) {
-
+		//printk("attr->ia_size %d\n",attr->ia_size);
+		//printk("first pi->i_blk_type %d\n",pi->i_blk_type);
 		pmfs_truncate_add(inode, attr->ia_size);
 		/* set allocation hint */
-		pmfs_set_blocksize_hint(sb, pi, attr->ia_size);
+		//pmfs_set_blocksize_hint(sb, pi, attr->ia_size);
 
 		/* now we can freely truncate the inode */
 		pmfs_setsize(inode, attr->ia_size);
@@ -1657,6 +1657,7 @@ int pmfs_notify_change(struct dentry *dentry, struct iattr *attr)
 		ia_valid = ia_valid & ~(ATTR_CTIME | ATTR_MTIME);
 		/* now it is safe to remove the inode from the truncate list */
 		pmfs_truncate_del(inode);
+		//printk("second pi->i_blk_type %d\n",pi->i_blk_type);
 	}
 	setattr_copy(inode, attr);
 
@@ -1683,7 +1684,8 @@ int pmfs_notify_change(struct dentry *dentry, struct iattr *attr)
 	pmfs_add_logentry(sb, trans, pi, sizeof(*pi), LE_DATA);
 
 	pmfs_update_inode(inode, pi);
-
+	//printk("third pi->i_blk_type %d\n",pi->i_blk_type);
+	//printk("Notifying change\n");
 	pmfs_commit_transaction(sb, trans);
 
 	return ret;

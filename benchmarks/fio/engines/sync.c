@@ -120,13 +120,17 @@ static int fio_syncio_queue(struct thread_data *td, struct io_u *io_u)
 {
 	struct fio_file *f = io_u->file;
 	int ret;
-
+	void *buff;
 	fio_ro_check(td, io_u);
 
 	if (io_u->ddir == DDIR_READ)
 		ret = read(f->fd, io_u->xfer_buf, io_u->xfer_buflen);
-	else if (io_u->ddir == DDIR_WRITE)
-		ret = write(f->fd, io_u->xfer_buf, io_u->xfer_buflen);
+	else if (io_u->ddir == DDIR_WRITE){
+		buff = malloc(io_u->xfer_buflen);
+		memcpy(buff, io_u->xfer_buf, io_u->xfer_buflen);
+		ret = write(f->fd, buff, io_u->xfer_buflen);
+		free(buff);
+	}
 	else if (io_u->ddir == DDIR_TRIM) {
 		do_io_u_trim(td, io_u);
 		return FIO_Q_COMPLETED;

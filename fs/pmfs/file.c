@@ -80,7 +80,7 @@ static long pmfs_fallocate(struct file *file, int mode, loff_t offset,
 	struct pmfs_inode *pi;
 	pmfs_transaction_t *trans;
 	loff_t new_size;
-	//printk(KERN_NOTICE "XIP_COW - pmfs_fallocate - entered \n");
+	printk(KERN_NOTICE "XIP_COW - pmfs_fallocate - entered \n");
 	/* We only support the FALLOC_FL_KEEP_SIZE mode */
 	if (mode & ~FALLOC_FL_KEEP_SIZE)
 		return -EOPNOTSUPP;

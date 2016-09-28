@@ -69,6 +69,7 @@ void new_atm_mapping(struct inode *inode){
 	atm_mapping->owner = current->pid;
 	atm_mapping->inode_n	= inode->i_ino;
 	atm_mapping->trans_t = pmfs_new_cow_transaction(sb,nblocks,pi->i_blk_type);
+	atm_mapping->hits = 0;
 	
 	printk("Owner: %d  inode %d  blocks %d size%ld \n",current->pid,inode->i_ino,nblocks,inode->i_size );
 	for(i =0; i<MAX_ATOMIC_MAPPINGS; i++)
@@ -82,16 +83,18 @@ void new_atm_mapping(struct inode *inode){
 void commit_atm_mapping(struct inode *inode){
 	struct super_block *sb = inode->i_sb;
 	struct pmfs_inode *pi;
-	pmfs_atomic_mapping_t *mapping;
-
+	pmfs_atomic_mapping_t *atm_mapping;
+	int nblocks;
 	pi = pmfs_get_inode(sb, inode->i_ino);
-
-	mapping = get_atm_mapping(current->pid, inode->i_ino);
-	if(!mapping)
+	nblocks = (inode->i_size >> sb->s_blocksize_bits) + 1;
+	atm_mapping = get_atm_mapping(current->pid, inode->i_ino);
+	if(!atm_mapping)
 		return;
-
-	pmfs_commit_transaction(sb, mapping->trans_t);
-	mapping->trans_t = pmfs_new_cow_transaction(sb,pi->i_blocks,pi->i_blk_type);
+	//printk("################ HITS :%d\n",atm_mapping->hits);
+	//printk("trans->num_used :%d\n",atm_mapping->trans_t->num_used);
+	atm_mapping->hits = 0;
+	pmfs_commit_transaction(sb, atm_mapping->trans_t);
+	atm_mapping->trans_t = pmfs_new_cow_transaction(sb,nblocks,pi->i_blk_type);
 }
 
 void finish_atm_mapping(struct inode *inode, int rollback){
@@ -105,6 +108,7 @@ void finish_atm_mapping(struct inode *inode, int rollback){
 	if(!mapping)
 		return;
 	printk("Ending Atomic Mapping \n");
+	//attempt_crash();
 	if(rollback)
 		pmfs_abort_transaction(sb, mapping->trans_t);
 	else
@@ -171,9 +175,10 @@ static inline void pmfs_undo_logentry(struct super_block *sb,
 		data = pmfs_get_block(sb, le64_to_cpu(le->addr_offset));
 		/* Undo changes by flushing the log entry to pmfs */
 		pmfs_memunlock_range(sb, data, le->size);
-		
+		__le64 *content;
+		content = (__le64 *) data;
 		memcpy(data, le->data, le->size);
-		printk("le data : %llx size: %d addr: %llx\n",*data, le->size, data);
+		//printk("le data : %llx size: %d addr: %llx\n",*content, le->size, data);
 		pmfs_memlock_range(sb, data, le->size);
 		pmfs_flush_buffer(data, le->size, false);
 	}
@@ -196,10 +201,11 @@ static void pmfs_undo_transaction(struct super_block *sb,
 	pmfs_block_set_t *block_set = trans->free_blocks;
 	
 	for (i = trans->num_used - 1; i >= 0; i--, le--) {
-		//data = pmfs_get_block(sb, le64_to_cpu(le->addr_offset));
-		//__pmfs_free_block(sb, pmfs_get_blocknr(sb, *data,
-		//		    block_set->i_blk_type), block_set->i_blk_type,&hint);
-		
+		data = pmfs_get_block(sb, le64_to_cpu(le->addr_offset));
+		printk("freeing blk: %llx\n",*data);
+		__pmfs_free_block(sb, pmfs_get_blocknr(sb, *data,
+				    block_set->i_blk_type), block_set->i_blk_type,&hint);
+
 		if (gen_id == le16_to_cpu(le->gen_id))
 			pmfs_undo_logentry(sb, le);
 	}
@@ -802,8 +808,10 @@ int __pmfs_add_logentry(struct super_block *sb,
 		le_size = (i == (num_les - 1)) ? size : sizeof(le->data);
 		le->size = le_size;
 		size -= le_size;
+
 		if (le_size)
 			memcpy(le->data, addr, le_size);
+		
 		le->type = type;
 
 		if (i == 0 && trans->num_used == 0)

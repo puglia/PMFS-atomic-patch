@@ -1,3 +1,5 @@
+#include <linux/random.h>
+
 #define _PCM_INTERNAL_H
 
 #define NS2CYCLE(__ns) ((__ns) * M_PCM_CPUFREQ / 1000)
@@ -15,6 +17,12 @@
 #define DRAM_BANDWIDTH_MB 7000
 
 #define M_PCM_CPUFREQ 3000
+
+#define TOTAL_OUTCOMES_NUM 100
+
+#define CRASH_LIKELIHOOD 10
+
+
 
 typedef uintptr_t pcm_word_t;
 typedef uint64_t pcm_hrtime_t;
@@ -162,4 +170,14 @@ emulate_latency_ns(int ns)
 
 # endif
 
-
+static inline void attempt_crash(){
+	int buf,random_number;
+	unsigned long long *seed;
+	seed = asm_rdtsc();
+	get_random_bytes(&buf,sizeof(buf));
+	random_number = buf % TOTAL_OUTCOMES_NUM;
+	printk("attempt_crash: buf:%d   random_number:%d  \n",buf,random_number);
+	if (random_number < CRASH_LIKELIHOOD) 
+		random_number = random_number/0;
+				
+}

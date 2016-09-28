@@ -96,7 +96,7 @@ typedef struct pmfs_atomic_mapping{
 pmfs_transaction_t 	*trans_t;
 pid_t			owner;
 u32			inode_n;
-
+int			hits;
 } pmfs_atomic_mapping_t;
 
 typedef struct pmfs_free_block_request{

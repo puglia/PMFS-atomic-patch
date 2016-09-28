@@ -31,17 +31,18 @@ static int log_new_block(pmfs_transaction_t *trans,
 	unsigned int index;
 
 	node = pmfs_get_block(sb, le64_to_cpu(block));
-	
 	node_bits = (height - 1) * meta_bits;
 	
+	//printk("HEIGHT ========= %d\n",height);
 	index = blocknr >> node_bits;
 	if (height == 1 || height == 0) {
 			
 			new_blk = cpu_to_le64(pmfs_get_block_off(sb,
 						new_block, pi->i_blk_type));
+			/*printk("XIP_ATOMIC - index %llx!\n",index);
 			printk("XIP_ATOMIC - new_block %llx!\n",new_blk);
 			printk("XIP_ATOMIC - node + index %llx!\n",&node[index]);
-			printk("XIP_ATOMIC - node[index] %llx!\n",node[index]);
+			printk("XIP_ATOMIC - node[index] %llx!\n",node[index]);*/
 			le_size = sizeof(__le64);
 			errval = __pmfs_add_logentry(sb, trans, &new_blk,height?&node[index]:&pi->root,
 				le_size, LE_DATA);
@@ -97,7 +98,7 @@ int pmfs_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf){
 		return VM_FAULT_SIGBUS;
 	}
 
-	err = pmfs_get_xip_mem(mapping, vmf->pgoff, 0, &xip_mem, &xip_pfn);
+	err = pmfs_get_xip_mem(mapping, vmf->pgoff, BLK_CREATE_BLOCK | BLK_USE_NEW_TRANS, &xip_mem, &xip_pfn);
 	if (unlikely(err)) {
 		pmfs_dbg("[%s:%d] get_xip_mem failed(OOM). vm_start(0x%lx),"
 			" vm_end(0x%lx), pgoff(0x%lx), VA(%lx)\n",
@@ -114,7 +115,7 @@ int pmfs_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf){
 	pmfs_xip_mem_protect(sb, cpy_mem, PAGE_CACHE_SHIFT, 1);
 	remain = __copy_from_user_inatomic_nocache(cpy_mem, xip_mem, PAGE_CACHE_SIZE);
 	pmfs_xip_mem_protect(sb, cpy_mem, PAGE_CACHE_SHIFT, 0);
-
+	atm->hits+=1;
 	emulate_latency(PAGE_CACHE_SIZE - remain);
 	//printk("XIP_ATOMIC   latency %ld \n",PAGE_CACHE_SIZE - remain);
 	printk("XIP_ATOMIC   accessed block: %llx   new block %llx \n",vmf->pgoff,blocknr);
@@ -425,7 +426,8 @@ static int __pmfs_xip_file_fault(struct vm_area_struct *vma,
 	pgoff_t size;
 	void *xip_mem;
 	unsigned long xip_pfn;
-	int err;
+	int err, flags;
+	flags = BLK_CREATE_BLOCK;
 
 	size = (i_size_read(inode) + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 	if (vmf->pgoff >= size) {
@@ -436,7 +438,9 @@ static int __pmfs_xip_file_fault(struct vm_area_struct *vma,
 		return VM_FAULT_SIGBUS;
 	}
 
-	err = pmfs_get_xip_mem(mapping, vmf->pgoff, 1, &xip_mem, &xip_pfn);
+	if(vma->vm_flags & VM_ATOMIC)
+		flags |= BLK_USE_NEW_TRANS;
+	err = pmfs_get_xip_mem(mapping, vmf->pgoff, flags, &xip_mem, &xip_pfn);
 	if (unlikely(err)) {
 		pmfs_dbg("[%s:%d] get_xip_mem failed(OOM). vm_start(0x%lx),"
 			" vm_end(0x%lx), pgoff(0x%lx), VA(%lx)\n",
@@ -475,7 +479,7 @@ static int pmfs_xip_file_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 }
 
 static int pmfs_find_and_alloc_blocks(struct inode *inode, sector_t iblock,
-				       sector_t *data_block, int create)
+				       sector_t *data_block, int flags)
 {
 	int err = -EIO;
 	u64 block;
@@ -486,14 +490,17 @@ static int pmfs_find_and_alloc_blocks(struct inode *inode, sector_t iblock,
 
 	if (!block) {
 		struct super_block *sb = inode->i_sb;
-		if (!create) {
+		//printk("pmfs_find_and_alloc_blocks - no block found!\n");
+		if (!(flags & BLK_CREATE_BLOCK)) {
+			//printk("pmfs_find_and_alloc_blocks - cannot create block!\n");
 			err = -ENODATA;
 			goto err;
 		}
 
 		pi = pmfs_get_inode(sb, inode->i_ino);
 		trans = pmfs_current_transaction();
-		if (trans) {
+		if (trans && !(flags & BLK_USE_NEW_TRANS)) {
+			
 			err = pmfs_alloc_blocks(trans, inode, iblock, 1, true);
 			if (err) {
 				pmfs_dbg_verbose("[%s:%d] Alloc failed!\n",
@@ -507,7 +514,7 @@ static int pmfs_find_and_alloc_blocks(struct inode *inode, sector_t iblock,
 				err = PTR_ERR(trans);
 				goto err;
 			}
-
+			//printk("pmfs_find_and_alloc_blocks - new trans created\n");
 			rcu_read_unlock();
 			mutex_lock(&inode->i_mutex);
 
@@ -533,6 +540,8 @@ static int pmfs_find_and_alloc_blocks(struct inode *inode, sector_t iblock,
 			goto err;
 		}
 	}
+	//else
+	//	printk("pmfs_find_and_alloc_blocks - Block found!\n");
 	pmfs_dbg_mmapvv("iblock 0x%lx allocated_block 0x%llx\n", iblock,
 			 block);
 
@@ -544,28 +553,28 @@ err:
 }
 
 static inline int __pmfs_get_block(struct inode *inode, pgoff_t pgoff,
-				    int create, sector_t *result)
+				    int flags, sector_t *result)
 {
 	int rc = 0;
 
 	rc = pmfs_find_and_alloc_blocks(inode, (sector_t)pgoff, result,
-					 create);
+					 flags);
 	return rc;
 }
 
-int pmfs_get_xip_mem(struct address_space *mapping, pgoff_t pgoff, int create,
+int pmfs_get_xip_mem(struct address_space *mapping, pgoff_t pgoff, int flags,
 		      void **kmem, unsigned long *pfn)
 {
 	int rc;
 	sector_t block = 0;
 	struct inode *inode = mapping->host;
 
-	rc = __pmfs_get_block(inode, pgoff, create, &block);
+	rc = __pmfs_get_block(inode, pgoff, flags, &block);
 	if (rc) {
 		pmfs_dbg1("[%s:%d] rc(%d), sb->physaddr(0x%llx), block(0x%llx),"
 			" pgoff(0x%lx), flag(0x%x), PFN(0x%lx)\n", __func__,
 			__LINE__, rc, PMFS_SB(inode->i_sb)->phys_addr,
-			block, pgoff, create, *pfn);
+			block, pgoff, flags, *pfn);
 		return rc;
 	}
 
@@ -574,7 +583,7 @@ int pmfs_get_xip_mem(struct address_space *mapping, pgoff_t pgoff, int create,
 
 	pmfs_dbg_mmapvv("[%s:%d] sb->physaddr(0x%llx), block(0x%lx),"
 		" pgoff(0x%lx), flag(0x%x), PFN(0x%lx)\n", __func__, __LINE__,
-		PMFS_SB(inode->i_sb)->phys_addr, block, pgoff, create, *pfn);
+		PMFS_SB(inode->i_sb)->phys_addr, block, pgoff, flags, *pfn);
 	return 0;
 }
 
