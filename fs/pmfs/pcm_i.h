@@ -20,7 +20,7 @@
 
 #define TOTAL_OUTCOMES_NUM 100
 
-#define CRASH_LIKELIHOOD 10
+#define CRASH_LIKELIHOOD 15
 
 
 
@@ -170,14 +170,19 @@ emulate_latency_ns(int ns)
 
 # endif
 
-static inline void attempt_crash(){
-	int buf,random_number;
+static inline int attempt_crash(char *message){
+	unsigned int buf,random_number;
+	int *a,*b;
 	unsigned long long *seed;
 	seed = asm_rdtsc();
 	get_random_bytes(&buf,sizeof(buf));
 	random_number = buf % TOTAL_OUTCOMES_NUM;
 	printk("attempt_crash: buf:%d   random_number:%d  \n",buf,random_number);
-	if (random_number < CRASH_LIKELIHOOD) 
-		random_number = random_number/0;
-				
+	if (random_number <= 15) {
+		printk("Crashed!  - %s\n",message);
+		memcpy(a,b,64);
+		return 1;
+	}
+
+	return 0;
 }

@@ -22,6 +22,7 @@
 #include <linux/falloc.h>
 #include <linux/pagevec.h>
 #include <linux/writeback.h>
+#include <linux/delay.h>
 #include <asm/mman.h>
 #include "pmfs.h"
 #include "xip.h"
@@ -217,6 +218,7 @@ static int pmfs_writeback(struct page *page, struct address_space *mapping, int 
 		pmfs_xip_mem_protect(sb, xip_mem, PAGE_CACHE_SHIFT, 1);
 		remain = __copy_from_user_inatomic_nocache(xip_mem, page_address(page), PAGE_CACHE_SIZE);
 		pmfs_xip_mem_protect(sb, xip_mem, PAGE_CACHE_SHIFT, 0);
+		printk("writing back still  \n");
 		if(remain)
 			printk(KERN_NOTICE "XIP_COW - pmfs_writeback - remain %ld\n",remain);
 		if(emulate)

@@ -44,6 +44,7 @@ static int log_new_block(pmfs_transaction_t *trans,
 			printk("XIP_ATOMIC - node + index %llx!\n",&node[index]);
 			printk("XIP_ATOMIC - node[index] %llx!\n",node[index]);*/
 			le_size = sizeof(__le64);
+			//attempt_crash("log_new_block 1");
 			errval = __pmfs_add_logentry(sb, trans, &new_blk,height?&node[index]:&pi->root,
 				le_size, LE_DATA);
 			
@@ -111,17 +112,17 @@ int pmfs_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf){
 
 	cpy_addr = cpu_to_le64(pmfs_get_block_off(sb,blocknr, pi->i_blk_type));
 	cpy_mem = pmfs_get_block(sb,cpy_addr);
-
+	//attempt_crash("mkwrite 1");
 	pmfs_xip_mem_protect(sb, cpy_mem, PAGE_CACHE_SHIFT, 1);
 	remain = __copy_from_user_inatomic_nocache(cpy_mem, xip_mem, PAGE_CACHE_SIZE);
 	pmfs_xip_mem_protect(sb, cpy_mem, PAGE_CACHE_SHIFT, 0);
-	atm->hits+=1;
+	//attempt_crash("mkwrite 2");
 	emulate_latency(PAGE_CACHE_SIZE - remain);
 	//printk("XIP_ATOMIC   latency %ld \n",PAGE_CACHE_SIZE - remain);
 	printk("XIP_ATOMIC   accessed block: %llx   new block %llx \n",vmf->pgoff,blocknr);
 	
 	log_new_block(trans, sb, pi, vmf->pgoff, pi->root,pi->height, blocknr);
-
+	//attempt_crash("mkwrite 3");
 	return 0;
 }
 

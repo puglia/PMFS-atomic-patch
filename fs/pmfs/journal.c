@@ -30,6 +30,7 @@
 #include <linux/sched.h>
 #include <linux/kthread.h>
 #include <linux/types.h>
+#include <linux/delay.h>
 #include "pmfs.h"
 #include "journal.h"
 #include "pcm_i.h"
@@ -92,9 +93,12 @@ void commit_atm_mapping(struct inode *inode){
 		return;
 	//printk("################ HITS :%d\n",atm_mapping->hits);
 	//printk("trans->num_used :%d\n",atm_mapping->trans_t->num_used);
+	//attempt_crash("commit_atm_mapping 1");
 	atm_mapping->hits = 0;
 	pmfs_commit_transaction(sb, atm_mapping->trans_t);
+	//attempt_crash("commit_atm_mapping 2");
 	atm_mapping->trans_t = pmfs_new_cow_transaction(sb,nblocks,pi->i_blk_type);
+	//attempt_crash("commit_atm_mapping 3");
 }
 
 void finish_atm_mapping(struct inode *inode, int rollback){
@@ -108,12 +112,14 @@ void finish_atm_mapping(struct inode *inode, int rollback){
 	if(!mapping)
 		return;
 	printk("Ending Atomic Mapping \n");
-	//attempt_crash();
+		
+	//attempt_crash("finish_atm_mapping 1");
+	
 	if(rollback)
 		pmfs_abort_transaction(sb, mapping->trans_t);
 	else
 		pmfs_commit_transaction(sb, mapping->trans_t);
-
+	//attempt_crash("finish_atm_mapping 2");
 	remove_atm_mapping(current->pid, inode->i_ino);
 }
 
@@ -205,7 +211,7 @@ static void pmfs_undo_transaction(struct super_block *sb,
 		printk("freeing blk: %llx\n",*data);
 		__pmfs_free_block(sb, pmfs_get_blocknr(sb, *data,
 				    block_set->i_blk_type), block_set->i_blk_type,&hint);
-
+		attempt_crash("pmfs_undo_transaction 1");
 		if (gen_id == le16_to_cpu(le->gen_id))
 			pmfs_undo_logentry(sb, le);
 	}
@@ -979,7 +985,7 @@ static int pmfs_recover_undo_journal(struct super_block *sb)
 	uint32_t head = le32_to_cpu(journal->head);
 	uint16_t gen_id = le16_to_cpu(journal->gen_id);
 	pmfs_logentry_t *le;
-
+	printk("pmfs_recover_undo_journal  \n");
 	while (head != tail) {
 		/* handle journal wraparound */
 		if (tail == 0)
