@@ -683,13 +683,14 @@ static int pmfs_fill_super(struct super_block *sb, void *data, int silent)
 
 	set_opt(sbi->s_mount_opt, MOUNTING);
 	initsize = sbi->initsize;
-
+	printk("initsize: %d \n",initsize);
 	/* Init a new pmfs instance */
 	if (initsize) {
 		root_pi = pmfs_init(sb, initsize);
 		if (IS_ERR(root_pi))
 			goto out;
 		super = pmfs_get_super(sb);
+		printk("Skipping journal processing \n");
 		goto setup_sb;
 	}
 	pmfs_dbg_verbose("checking physical address 0x%016llx for pmfs image\n",
@@ -707,7 +708,7 @@ static int pmfs_fill_super(struct super_block *sb, void *data, int silent)
 
 	initsize = le64_to_cpu(super->s_size);
 	sbi->initsize = initsize;
-	pmfs_dbg_verbose("pmfs image appears to be %lu KB in size\n",
+	/*pmfs_dbg_verbose*/printk("pmfs image appears to be %lu KB in size\n",
 		   initsize >> 10);
 
 	pmfs_iounmap(sbi->virt_addr, PAGE_SIZE, pmfs_is_wprotected(sb));

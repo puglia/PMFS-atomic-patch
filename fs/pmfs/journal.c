@@ -57,7 +57,7 @@ void remove_atm_mapping(pid_t pid, u64 ino){
 		}
 }
 
-void new_atm_mapping(struct inode *inode){
+int new_atm_mapping(struct inode *inode){
 	struct super_block *sb = inode->i_sb;
 	struct pmfs_inode *pi;
 	int i,nblocks;
@@ -71,14 +71,13 @@ void new_atm_mapping(struct inode *inode){
 	atm_mapping->inode_n	= inode->i_ino;
 	atm_mapping->trans_t = pmfs_new_cow_transaction(sb,nblocks,pi->i_blk_type);
 	atm_mapping->hits = 0;
-	
+	//attempt_crash("new_atm_mapping\n");
 	printk("Owner: %d  inode %d  blocks %d size%ld \n",current->pid,inode->i_ino,nblocks,inode->i_size );
 	for(i =0; i<MAX_ATOMIC_MAPPINGS; i++)
 		if(!atomic_maps[i]){
-			
 			atomic_maps[i] = atm_mapping;
 			break;
-	}
+		}
 }
 
 void commit_atm_mapping(struct inode *inode){
@@ -196,7 +195,7 @@ static void pmfs_undo_transaction(struct super_block *sb,
 		pmfs_transaction_t *trans)
 {
 	pmfs_logentry_t *le;
-	int i;
+	int i,error;
 	__le64 *data;
 	uint16_t gen_id = trans->gen_id;
 	struct pmfs_sb_info *sbi = PMFS_SB(sb);
@@ -211,11 +210,14 @@ static void pmfs_undo_transaction(struct super_block *sb,
 		printk("freeing blk: %llx\n",*data);
 		__pmfs_free_block(sb, pmfs_get_blocknr(sb, *data,
 				    block_set->i_blk_type), block_set->i_blk_type,&hint);
-		attempt_crash("pmfs_undo_transaction 1");
+		
+		error = should_crash();
 		if (gen_id == le16_to_cpu(le->gen_id))
 			pmfs_undo_logentry(sb, le);
 	}
 	mutex_unlock(&sbi->s_lock);
+	if(error)
+		crash_op("pmfs_undo_transaction 1");
 }
 
 /* can be called by either during log cleaning or during journal recovery */
@@ -1052,11 +1054,11 @@ int pmfs_recover_journal(struct super_block *sb)
 	uint32_t tail = le32_to_cpu(journal->tail);
 	uint32_t head = le32_to_cpu(journal->head);
 	uint16_t gen_id = le16_to_cpu(journal->gen_id);
-
+	printk("Entered pmfs_recover_journal\n");
 	/* is the journal empty? true if unmounted properly. */
 	if (head == tail)
 		return 0;
-	pmfs_dbg("PMFS: journal recovery. head:tail %x:%x gen_id %d\n",
+	/*pmfs_dbg*/printk("PMFS: journal recovery. head:tail %x:%x gen_id %d\n",
 		head, tail, gen_id);
 	if (sbi->redo_log)
 		pmfs_recover_redo_journal(sb);

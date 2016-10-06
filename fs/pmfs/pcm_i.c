@@ -4,6 +4,7 @@
 #include "pcm_i.h"
 
 spinlock_t pcm_lock;
+int error_occured;
 
  void emulate_latency(size_t size){
 	int              extra_latency;
@@ -11,4 +12,12 @@ spinlock_t pcm_lock;
 	spin_lock(&pcm_lock);
 	emulate_latency_ns(extra_latency);
 	spin_unlock(&pcm_lock);
+}
+
+void set_error(){
+	error_occured++;
+}
+
+int get_error(){
+	return error_occured;
 }

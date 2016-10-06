@@ -1,4 +1,5 @@
 #include <linux/random.h>
+#include <linux/sched.h>
 
 #define _PCM_INTERNAL_H
 
@@ -28,6 +29,8 @@ typedef uintptr_t pcm_word_t;
 typedef uint64_t pcm_hrtime_t;
 
 extern void emulate_latency(size_t size);
+extern void set_error();
+extern int get_error();
 
 static inline void asm_cpuid(void) {
 	asm volatile( "cpuid" :::"rax", "rbx", "rcx", "rdx");
@@ -170,17 +173,29 @@ emulate_latency_ns(int ns)
 
 # endif
 
-static inline int attempt_crash(char *message){
+static inline int should_crash(){
 	unsigned int buf,random_number;
 	int *a,*b;
 	unsigned long long *seed;
 	seed = asm_rdtsc();
 	get_random_bytes(&buf,sizeof(buf));
 	random_number = buf % TOTAL_OUTCOMES_NUM;
-	printk("attempt_crash: buf:%d   random_number:%d  \n",buf,random_number);
-	if (random_number <= 15) {
-		printk("Crashed!  - %s\n",message);
-		memcpy(a,b,64);
+	//printk("attempt_crash: buf:%d   random_number:%d  \n",buf,random_number);
+	if (random_number <= CRASH_LIKELIHOOD)
+		return 1;
+
+	return 0;
+}
+
+static inline void crash_op(char *message){
+	printk("Crashed!  - %s\n",message);
+	BUG();//memcpy(a,b,64);
+	set_error();
+}
+
+static inline int attempt_crash(char *message){
+	if (should_crash()) {
+		 crash_op(message);
 		return 1;
 	}
 

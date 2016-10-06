@@ -109,6 +109,8 @@ int pmfs_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf){
 	}
 
 	err = pmfs_new_block(sb, &blocknr, pi->i_blk_type, 0);
+	if(err)
+		return VM_FAULT_SIGBUS;
 
 	cpy_addr = cpu_to_le64(pmfs_get_block_off(sb,blocknr, pi->i_blk_type));
 	cpy_mem = pmfs_get_block(sb,cpy_addr);
@@ -119,7 +121,7 @@ int pmfs_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf){
 	//attempt_crash("mkwrite 2");
 	emulate_latency(PAGE_CACHE_SIZE - remain);
 	//printk("XIP_ATOMIC   latency %ld \n",PAGE_CACHE_SIZE - remain);
-	printk("XIP_ATOMIC   accessed block: %llx   new block %llx \n",vmf->pgoff,blocknr);
+	//printk("XIP_ATOMIC   accessed block: %llx   new block %llx \n",vmf->pgoff,blocknr);
 	
 	log_new_block(trans, sb, pi, vmf->pgoff, pi->root,pi->height, blocknr);
 	//attempt_crash("mkwrite 3");
@@ -793,6 +795,8 @@ int pmfs_xip_file_mmap(struct file *file, struct vm_area_struct *vma)
 
 	if(vma->vm_flags & VM_ATOMIC){
 		//printk("New Mapping \n");
+		if(get_error())
+			pmfs_recover_journal(file->f_mapping->host->i_sb);
 		new_atm_mapping(file->f_mapping->host);
 	}
 

@@ -109,7 +109,7 @@ struct super_block	*sb_t;
 int pmfs_free_trans_blocks(void *data);
 
 extern pmfs_atomic_mapping_t *get_atm_mapping(pid_t pid, u64 ino);
-extern void new_atm_mapping(struct inode *inode);
+extern int new_atm_mapping(struct inode *inode);
 extern void commit_atm_mapping(struct inode *inode);
 extern void finish_atm_mapping(struct inode *inode, int rollback);
 
