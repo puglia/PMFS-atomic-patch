@@ -85,8 +85,7 @@ SYSCALL_DEFINE3(msync, unsigned long, start, size_t, len, int, flags)
 				(vma->vm_flags & VM_SHARED)) {
 			get_file(file);
 			up_read(&mm->mmap_sem);
-			if(vma->vm_flags & VM_XIP_COW){				
-
+			if(vma->vm_flags & VM_XIP_COW){		
 			error = vfs_fsync_range(file,fsync_start, fsync_end - 1, flags & 0x008?13:flags & 0x010?14:flags & 0x020?15:flags & 0x040?16:flags & 0x080?17:flags & 0x100?18:12 );
 			if(flags & 0x100){printk("flushy\n");
 				goto flushy;}

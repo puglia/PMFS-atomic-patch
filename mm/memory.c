@@ -2812,7 +2812,7 @@ reuse:
 		flush_cache_page(vma, address, pte_pfn(orig_pte));
 
 		if(vma->vm_flags & VM_ATOMIC){
-				struct vm_fault vmf;
+			struct vm_fault vmf;
 			int tmp;
 
 			vmf.virtual_address = (void __user *)(address &
@@ -2828,7 +2828,9 @@ reuse:
 			if (unlikely(tmp &
 					(VM_FAULT_ERROR | VM_FAULT_NOPAGE))) {
 				ret = tmp;
-				goto unwritable_page;
+				printk("going to unwritable_page %s\n",old_page?"NOT NULL":"NULL");
+				ret= VM_FAULT_SIGBUS;
+				goto unlock;
 			}
 		}
 			

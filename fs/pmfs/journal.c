@@ -91,13 +91,13 @@ void commit_atm_mapping(struct inode *inode){
 	if(!atm_mapping)
 		return;
 	//printk("################ HITS :%d\n",atm_mapping->hits);
-	//printk("trans->num_used :%d\n",atm_mapping->trans_t->num_used);
-	//attempt_crash("commit_atm_mapping 1");
+	printk("trans->num_used :%d\n",atm_mapping->trans_t->num_used);
+	attempt_crash("commit_atm_mapping 1",0);
 	atm_mapping->hits = 0;
 	pmfs_commit_transaction(sb, atm_mapping->trans_t);
-	//attempt_crash("commit_atm_mapping 2");
+	attempt_crash("commit_atm_mapping 2",0);
 	atm_mapping->trans_t = pmfs_new_cow_transaction(sb,nblocks,pi->i_blk_type);
-	//attempt_crash("commit_atm_mapping 3");
+	attempt_crash("commit_atm_mapping 3",0);
 }
 
 void finish_atm_mapping(struct inode *inode, int rollback){
@@ -112,13 +112,13 @@ void finish_atm_mapping(struct inode *inode, int rollback){
 		return;
 	printk("Ending Atomic Mapping \n");
 		
-	//attempt_crash("finish_atm_mapping 1");
+	attempt_crash("finish_atm_mapping 1",0);
 	
 	if(rollback)
 		pmfs_abort_transaction(sb, mapping->trans_t);
 	else
 		pmfs_commit_transaction(sb, mapping->trans_t);
-	//attempt_crash("finish_atm_mapping 2");
+	attempt_crash("finish_atm_mapping 2",0);
 	remove_atm_mapping(current->pid, inode->i_ino);
 }
 
@@ -195,7 +195,7 @@ static void pmfs_undo_transaction(struct super_block *sb,
 		pmfs_transaction_t *trans)
 {
 	pmfs_logentry_t *le;
-	int i,error;
+	int i,crashed;
 	__le64 *data;
 	uint16_t gen_id = trans->gen_id;
 	struct pmfs_sb_info *sbi = PMFS_SB(sb);
@@ -207,17 +207,19 @@ static void pmfs_undo_transaction(struct super_block *sb,
 	
 	for (i = trans->num_used - 1; i >= 0; i--, le--) {
 		data = pmfs_get_block(sb, le64_to_cpu(le->addr_offset));
-		printk("freeing blk: %llx\n",*data);
-		__pmfs_free_block(sb, pmfs_get_blocknr(sb, *data,
+		//printk("freeing blk: %llx\n",*data);
+		if(block_set)
+			__pmfs_free_block(sb, pmfs_get_blocknr(sb, *data,
 				    block_set->i_blk_type), block_set->i_blk_type,&hint);
-		
-		error = should_crash();
+
+		if(crashed = should_crash())
+			break;
 		if (gen_id == le16_to_cpu(le->gen_id))
 			pmfs_undo_logentry(sb, le);
 	}
 	mutex_unlock(&sbi->s_lock);
-	if(error)
-		crash_op("pmfs_undo_transaction 1");
+	if(crashed)
+		attempt_crash("pmfs_undo_transaction 1",1);
 }
 
 /* can be called by either during log cleaning or during journal recovery */
@@ -306,11 +308,10 @@ static uint32_t pmfs_recover_transaction(struct super_block *sb, uint32_t head,
 	memset(&trans, 0, sizeof(trans));
 	trans.transaction_id = le32_to_cpu(le->transaction_id);
 	trans.gen_id = gen_id;
-
+	printk("entered pmfs_recover_transaction \n");
 	do {
 		trans.num_entries++;
 		trans.num_used++;
-
 		if (gen_id == le16_to_cpu(le->gen_id)) {
 			/* Handle committed/aborted transactions */
 			if (le->type & LE_COMMIT || le->type & LE_ABORT)
@@ -336,8 +337,10 @@ static uint32_t pmfs_recover_transaction(struct super_block *sb, uint32_t head,
 		tail = prev_log_entry(sbi->jsize, tail);
 	} while (1);
 
-	if (start_found && !cmt_or_abrt_found)
+	if (start_found && !cmt_or_abrt_found){
+		printk("got to pmfs_undo_transaction\n");
 		pmfs_undo_transaction(sb, &trans);
+	}
 
 	if (gen_id == MAX_GEN_ID) {
 		if (!start_found)
@@ -785,6 +788,7 @@ int __pmfs_add_logentry(struct super_block *sb,
 	int num_les = 0, i;
 	uint64_t le_start = size ? (pmfs_get_addr_off(sbi, addr_offset?addr_offset:addr)) : 0;
 	uint8_t le_size;
+	
 	if (trans == NULL)
 		return -EINVAL;
 	le = trans->start_addr + trans->num_used;
@@ -808,7 +812,10 @@ int __pmfs_add_logentry(struct super_block *sb,
 		dump_stack();
 		return -ENOMEM;
 	}
-
+	if(should_crash()){
+		attempt_crash("Crashed - __pmfs_add_logentry 1\n",1);//printk("Crashed - __pmfs_add_logentry 1\n");
+		//return -EINVAL;
+	}
 	pmfs_memunlock_range(sb, le, sizeof(*le) * num_les);
 	for (i = 0; i < num_les; i++) {
 		le->addr_offset = cpu_to_le64(le_start);
@@ -816,7 +823,11 @@ int __pmfs_add_logentry(struct super_block *sb,
 		le_size = (i == (num_les - 1)) ? size : sizeof(le->data);
 		le->size = le_size;
 		size -= le_size;
-
+		if(should_crash()){
+			attempt_crash("Crashed - __pmfs_add_logentry 2\n",1);
+			//printk("Crashed - __pmfs_add_logentry 2\n");
+			//return -EINVAL;
+		}
 		if (le_size)
 			memcpy(le->data, addr, le_size);
 		
@@ -895,7 +906,6 @@ int pmfs_commit_transaction(struct super_block *sb,
 		enqueue_request(init_request(sb,trans));
 		wakeup_log_cleaner(PMFS_SB(sb));
 		//pmfs_free_trans_blocks((void *) init_request(sb,trans));
-		
 	}
 	else
 		pmfs_free_transaction(trans);
