@@ -218,7 +218,7 @@ static int pmfs_writeback(struct page *page, struct address_space *mapping, int 
 		pmfs_xip_mem_protect(sb, xip_mem, PAGE_CACHE_SHIFT, 1);
 		remain = __copy_from_user_inatomic_nocache(xip_mem, page_address(page), PAGE_CACHE_SIZE);
 		pmfs_xip_mem_protect(sb, xip_mem, PAGE_CACHE_SHIFT, 0);
-		printk("writing back still  \n");
+
 		if(remain)
 			printk(KERN_NOTICE "XIP_COW - pmfs_writeback - remain %ld\n",remain);
 		if(emulate)
@@ -395,7 +395,7 @@ static int pmfs_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 	/* if the file is not mmap'ed, there is no need to do clflushes */
 	if (mapping_mapped(mapping) == 0)
 		goto persist;
-
+	
 	if(datasync >= 12)
 		return	pmfs_cow_sync(file,inode,start,end,datasync);
 	else if(datasync >=11)

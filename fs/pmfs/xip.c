@@ -44,12 +44,24 @@ static int log_new_block(pmfs_transaction_t *trans,
 			printk("XIP_ATOMIC - node + index %llx!\n",&node[index]);
 			printk("XIP_ATOMIC - node[index] %llx!\n",node[index]);*/
 			le_size = sizeof(__le64);
-			//attempt_crash("log_new_block 1");
+			if(should_crash()){
+				printk("Crashed - log_new_block 1 \n");
+				errval = -ENOMEM;
+				set_error();
+				goto fail;
+			}
 			errval = __pmfs_add_logentry(sb, trans, &new_blk,height?&node[index]:&pi->root,
 				le_size, LE_DATA);
 			
 			if(errval < 0)
 				goto fail;
+	
+			if(should_crash()){
+				printk("Crashed - log_new_block 2 \n");
+				errval = -ENOMEM;
+				set_error();
+				goto fail;
+			}
 			
 			errval = pmfs_add_block_to_free(trans,new_block);
 			if(errval < 0)
@@ -105,24 +117,42 @@ int pmfs_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf){
 			" vm_end(0x%lx), pgoff(0x%lx), VA(%lx)\n",
 			__func__, __LINE__, vma->vm_start, vma->vm_end,
 			vmf->pgoff, (unsigned long)vmf->virtual_address);
-		return VM_FAULT_SIGBUS;
+		return VM_FAULT_NOPAGE;
 	}
 
 	err = pmfs_new_block(sb, &blocknr, pi->i_blk_type, 0);
 
 	cpy_addr = cpu_to_le64(pmfs_get_block_off(sb,blocknr, pi->i_blk_type));
 	cpy_mem = pmfs_get_block(sb,cpy_addr);
-	//attempt_crash("mkwrite 1");
+	//attempt_crash("mkwrite 1",0);
+	if(should_crash()){
+		printk("Crashed - mkwrite 1\n");
+		set_error();
+		return VM_FAULT_ERROR;
+	}
 	pmfs_xip_mem_protect(sb, cpy_mem, PAGE_CACHE_SHIFT, 1);
 	remain = __copy_from_user_inatomic_nocache(cpy_mem, xip_mem, PAGE_CACHE_SIZE);
 	pmfs_xip_mem_protect(sb, cpy_mem, PAGE_CACHE_SHIFT, 0);
-	//attempt_crash("mkwrite 2");
+	//attempt_crash("mkwrite 2",0);
+	if(should_crash()){
+		printk("Crashed - mkwrite 2\n");
+		set_error();
+		return VM_FAULT_ERROR;
+	}	
 	emulate_latency(PAGE_CACHE_SIZE - remain);
 	//printk("XIP_ATOMIC   latency %ld \n",PAGE_CACHE_SIZE - remain);
-	printk("XIP_ATOMIC   accessed block: %llx   new block %llx \n",vmf->pgoff,blocknr);
+	//printk("XIP_ATOMIC   accessed block: %llx   new block %llx \n",vmf->pgoff,blocknr);
 	
-	log_new_block(trans, sb, pi, vmf->pgoff, pi->root,pi->height, blocknr);
-	//attempt_crash("mkwrite 3");
+	err = log_new_block(trans, sb, pi, vmf->pgoff, pi->root,pi->height, blocknr);
+	if(err)
+		return VM_FAULT_ERROR;
+	
+	if(should_crash()){
+		printk("Crashed - mkwrite 3\n");
+		set_error();
+		return VM_FAULT_ERROR;
+	}	
+exception:
 	return 0;
 }
 
@@ -790,12 +820,19 @@ int pmfs_xip_file_mmap(struct file *file, struct vm_area_struct *vma)
 	file_accessed(file);
 
 	vma->vm_flags |= VM_MIXEDMAP;
-
+	set_sb(file->f_mapping->host->i_sb);
 	if(vma->vm_flags & VM_ATOMIC){
 		//printk("New Mapping \n");
+		if(get_error()){
+			pmfs_recover_journal(file->f_mapping->host->i_sb);
+			reset_error();
+			return -ENOMEM;
+		}		
 		new_atm_mapping(file->f_mapping->host);
+		
 	}
-
+	
+	attempt_crash("pmfs_xip_file_mmap 1",0);
 	block_sz = pmfs_data_block_size(vma, vma->vm_start, 0);
 	if (pmfs_has_huge_mmap(file->f_mapping->host->i_sb) &&
 	    (vma->vm_flags & VM_SHARED) &&

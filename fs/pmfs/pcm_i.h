@@ -1,4 +1,6 @@
 #include <linux/random.h>
+#include "pmfs.h"
+
 
 #define _PCM_INTERNAL_H
 
@@ -18,9 +20,9 @@
 
 #define M_PCM_CPUFREQ 3000
 
-#define TOTAL_OUTCOMES_NUM 100
+#define TOTAL_OUTCOMES_NUM 100000
 
-#define CRASH_LIKELIHOOD 15
+#define CRASH_LIKELIHOOD 10
 
 
 
@@ -28,6 +30,13 @@ typedef uintptr_t pcm_word_t;
 typedef uint64_t pcm_hrtime_t;
 
 extern void emulate_latency(size_t size);
+extern void set_error();
+extern void reset_error();
+extern int get_error();
+extern void lock_first();
+extern void set_sb(struct super_block *sb);
+
+
 
 static inline void asm_cpuid(void) {
 	asm volatile( "cpuid" :::"rax", "rbx", "rcx", "rdx");
@@ -156,7 +165,7 @@ emulate_latency_ns(int ns)
 	//printk("emulating latency: %dns",ns);
 	start = asm_rdtsc();
 	cycles = NS2CYCLE(ns);
-	
+
 	do { 
 		/* RDTSC doesn't necessarily wait for previous instructions to complete 
 		 * so a serializing instruction is usually used to ensure previous 
@@ -170,17 +179,29 @@ emulate_latency_ns(int ns)
 
 # endif
 
-static inline int attempt_crash(char *message){
+static inline int should_crash(){
 	unsigned int buf,random_number;
 	int *a,*b;
 	unsigned long long *seed;
+	if(get_error())
+		return 0;
 	seed = asm_rdtsc();
 	get_random_bytes(&buf,sizeof(buf));
 	random_number = buf % TOTAL_OUTCOMES_NUM;
-	printk("attempt_crash: buf:%d   random_number:%d  \n",buf,random_number);
-	if (random_number <= 15) {
+	//printk("attempt_crash: buf:%d   random_number:%d  \n",buf,random_number);
+	if (random_number <= CRASH_LIKELIHOOD)
+		return 1;
+
+	return 0;
+}
+
+static inline int attempt_crash(char *message,int force){
+	
+	if (should_crash() || force) {
+		set_error();
+		lock_first();
 		printk("Crashed!  - %s\n",message);
-		memcpy(a,b,64);
+		BUG();//memcpy(a,b,64);
 		return 1;
 	}
 
