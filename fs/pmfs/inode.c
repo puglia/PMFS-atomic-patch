@@ -606,8 +606,8 @@ static int recursive_alloc_blocks(pmfs_transaction_t *trans,
 			if (node[i] == 0) {
 				errval = pmfs_new_data_block(sb, pi, &blocknr,
 							zero);
-				printk("INDEX: %d\n",i);
-				printk("node + index: %llx\n",&node[i]);
+				//printk("INDEX: %d\n",i);
+				//printk("node + index: %llx\n",&node[i]);
 				if (errval) {
 					pmfs_dbg_verbose("alloc data blk failed"
 						" %d\n", errval);
@@ -710,18 +710,21 @@ static int rec_cow_block(pmfs_transaction_t *trans,
 			/* save the meta-data into the journal before
 			 * modifying */
 			le_size = sizeof(__le64);
+			attempt_crash("rec_alloc 1",0);
 			pmfs_add_logentry(sb, trans, &node[index],
 				le_size, LE_DATA);
+			attempt_crash("rec_alloc 2",0);
 			//printk("XIP_COW - rec_alloc_blocks - journaled!\n");
-			/**printk("XIP_COW - blocknr %llx!\n",cpu_to_le64(pmfs_get_block_off(sb,
-						new_blk, pi->i_blk_type)));
-			printk("XIP_COW - node[index] %llx!\n",node[index]);
-			printk("XIP_COW - node + index %llx!\n",&node[index]);
-			*/old_blk = pmfs_get_blocknr(sb, le64_to_cpu(node[index]),
+			//printk("XIP_COW - blocknr %llx!\n",cpu_to_le64(pmfs_get_block_off(sb,
+			//			new_blk, pi->i_blk_type)));
+			//printk("XIP_COW - node[index] %llx!\n",node[index]);
+			//printk("XIP_COW - node + index %llx!\n",&node[index]);
+			old_blk = pmfs_get_blocknr(sb, le64_to_cpu(node[index]),
 				    pi->i_blk_type);
-
+			attempt_crash("rec_alloc 3",0);
 			//__pmfs_free_block(sb, old_blk, pi->i_blk_type,NULL);
 			errval = pmfs_add_block_to_free(trans,old_blk);
+			attempt_crash("rec_alloc 4",0);
 			
 			if(errval < 0){
 				printk("error freeing block...\n");
@@ -734,7 +737,7 @@ static int rec_cow_block(pmfs_transaction_t *trans,
 			
 	} else {
 		next_blk = blocknr & ((1 << node_bits) - 1);
-
+		attempt_crash("rec_alloc 5",0);
 		errval = rec_cow_block(trans, sb, pi, node[index],height - 1, next_blk);
 		if (errval < 0)
 			goto fail;
@@ -742,6 +745,7 @@ static int rec_cow_block(pmfs_transaction_t *trans,
 	}
 	errval = 0;
 fail:
+	attempt_crash("rec_alloc 6",0);
 	return errval;
 }
 
@@ -864,7 +868,8 @@ int pmfs_cow_block(pmfs_transaction_t *trans, struct super_block *sb,
 	/*printk("XIP_COW - file_blocknr:%llx \n",file_blocknr);
 	printk("XIP_COW - blk_shift:%llx \n",blk_shift);
 	printk("XIP_COW - blocknr:%llx \n",blocknr);
-	*/errval = rec_cow_block(trans, sb, pi, pi->root, height,file_blocknr);
+	*/
+	errval = rec_cow_block(trans, sb, pi, pi->root, height,blocknr);
 	if (errval < 0)
 		goto fail;
 	
@@ -1676,7 +1681,7 @@ int pmfs_notify_change(struct dentry *dentry, struct iattr *attr)
 		return ret;
 	}
 
-	BUG_ON(pmfs_current_transaction());
+	//BUG_ON(pmfs_current_transaction());
 	/* multiple fields are modified. Use a transaction for atomicity */
 	trans = pmfs_new_transaction(sb, MAX_INODE_LENTRIES);
 	if (IS_ERR(trans))

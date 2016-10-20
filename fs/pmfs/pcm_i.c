@@ -8,6 +8,7 @@
 spinlock_t pcm_lock;
 int error_occurred = 0;
 struct pmfs_sb_info *superbloco;
+struct inode *current_inode;
 
  void emulate_latency(size_t size){
 	int              extra_latency;
@@ -22,8 +23,20 @@ void set_sb(struct super_block *sb){
 }
 
 void lock_first(){
-	mutex_lock(&superbloco->s_lock);
-	mutex_unlock(&superbloco->s_lock);
+	if(superbloco){
+		mutex_trylock(&superbloco->s_lock);
+		msleep(500);
+		mutex_unlock(&superbloco->s_lock);
+	}
+	if(current_inode){ 
+		mutex_trylock(&current_inode->i_mutex);
+		mutex_unlock(&current_inode->i_mutex);
+	}
+}
+
+void set_inode(struct inode *inode){
+	current_inode = inode;
+	set_sb(inode->i_sb);
 }
 
 void set_error(){

@@ -1,10 +1,7 @@
 #include <linux/random.h>
-<<<<<<< HEAD
 #include <linux/sched.h>
-=======
 #include "pmfs.h"
 
->>>>>>> 5d464b51b5a9b7166bd4781ba4e4eaf1a693d1c9
 
 #define _PCM_INTERNAL_H
 
@@ -24,9 +21,9 @@
 
 #define M_PCM_CPUFREQ 3000
 
-#define TOTAL_OUTCOMES_NUM 100000
+#define TOTAL_OUTCOMES_NUM 10000000
 
-#define CRASH_LIKELIHOOD 10
+#define CRASH_LIKELIHOOD 50
 
 
 
@@ -39,6 +36,7 @@ extern void reset_error();
 extern int get_error();
 extern void lock_first();
 extern void set_sb(struct super_block *sb);
+extern void set_inode(struct inode *inode);
 
 static inline void asm_cpuid(void) {
 	asm volatile( "cpuid" :::"rax", "rbx", "rcx", "rdx");
@@ -182,7 +180,7 @@ emulate_latency_ns(int ns)
 # endif
 
 static inline int should_crash(){
-	unsigned int buf,random_number;
+	/*unsigned int buf,random_number;
 	int *a,*b;
 	unsigned long long *seed;
 	if(get_error())
@@ -191,8 +189,10 @@ static inline int should_crash(){
 	get_random_bytes(&buf,sizeof(buf));
 	random_number = buf % TOTAL_OUTCOMES_NUM;
 	//printk("attempt_crash: buf:%d   random_number:%d  \n",buf,random_number);
-	if (random_number <= CRASH_LIKELIHOOD)
+	if (random_number <= CRASH_LIKELIHOOD){
+		printk("attempt_crash: buf:%d   random_number:%d  \n",buf,random_number);
 		return 1;
+	}*/
 
 	return 0;
 }

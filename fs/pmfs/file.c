@@ -215,10 +215,11 @@ static int pmfs_writeback(struct page *page, struct address_space *mapping, int 
 		return -EINVAL;
 	} else {
 		/* flush the range */
+		attempt_crash("pmfs_writeback 1",0);
 		pmfs_xip_mem_protect(sb, xip_mem, PAGE_CACHE_SHIFT, 1);
 		remain = __copy_from_user_inatomic_nocache(xip_mem, page_address(page), PAGE_CACHE_SIZE);
 		pmfs_xip_mem_protect(sb, xip_mem, PAGE_CACHE_SHIFT, 0);
-
+		attempt_crash("pmfs_writeback 2",0);
 		if(remain)
 			printk(KERN_NOTICE "XIP_COW - pmfs_writeback - remain %ld\n",remain);
 		if(emulate)
@@ -310,18 +311,19 @@ go_on_unlock:
 		pte_unmap_unlock(ptep,ptl);
 go_on:
 		addr += PAGE_CACHE_SIZE;
+		attempt_crash("pmfs_cow_sync 1",0);
 	}while(addr < end);
 
 	if(datasync == 14)
 		goto writeback;
-	
+	printk("total pages: %ld \n",list_size);
 	mutex_lock(&sbi->s_lock);
 	for(i=0;i<list_size;i++){
 		ptep = pte_list[i];
-
+		attempt_crash("pmfs_cow_sync 2",0);
 		page = pte_page(*ptep);
 		ret = pmfs_cow_block(trans,sb, pi, page->index);
-
+		attempt_crash("pmfs_cow_sync 3",0);
 		if(ret){
 			printk("XIP_COW - pmfs_cow_sync cowing blocks error!!!\n");
 			pmfs_abort_transaction(sb, trans);
@@ -335,9 +337,9 @@ writeback:
 		for(i=0;i<list_size;i++){
 			ptep = pte_list[i];
 			page = pte_page(*pte_list[i]);
-		
+			attempt_crash("pmfs_cow_sync 4",0);
 			ret = pmfs_writeback(page, inode->i_mapping,datasync - 12);
-		
+			attempt_crash("pmfs_cow_sync 5",0);
 			if(!ret){
 				ptec = pte_mkclean(*ptep);
 				set_pte(ptep, ptec);
@@ -359,14 +361,14 @@ writeback:
 			if(ret)
 				goto out;
 		}
-
+	attempt_crash("pmfs_cow_sync 6",0);
 	pmfs_commit_transaction(sb, trans);
 out:
 	if(pte_list)
 		vfree(pte_list);
 	mutex_unlock(&inode->i_mutex);
 	sb_end_write(inode->i_sb);
-
+	attempt_crash("pmfs_cow_sync 7",0);
 	return ret;
 
 }

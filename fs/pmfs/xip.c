@@ -822,15 +822,16 @@ int pmfs_xip_file_mmap(struct file *file, struct vm_area_struct *vma)
 	file_accessed(file);
 
 	vma->vm_flags |= VM_MIXEDMAP;
-	set_sb(file->f_mapping->host->i_sb);
-	if(vma->vm_flags & VM_ATOMIC){
+	
+	if(vma->vm_flags & (VM_ATOMIC | VM_XIP_COW)){
+		set_inode(file->f_mapping->host);
 		if(get_error()){
 			pmfs_recover_journal(file->f_mapping->host->i_sb);
 			reset_error();
 			return -ENOMEM;
-		}		
-		new_atm_mapping(file->f_mapping->host);
-		
+		}
+		if(vma->vm_flags & VM_ATOMIC)		
+			new_atm_mapping(file->f_mapping->host);
 	}
 	
 	attempt_crash("pmfs_xip_file_mmap 1",0);

@@ -181,9 +181,9 @@ static inline void pmfs_undo_logentry(struct super_block *sb,
 		/* Undo changes by flushing the log entry to pmfs */
 		pmfs_memunlock_range(sb, data, le->size);
 		__le64 *content;
-		content = (__le64 *) data;
+		content = (__le64 *) le->data;
 		memcpy(data, le->data, le->size);
-		//printk("le data : %llx size: %d addr: %llx\n",*content, le->size, data);
+		printk("le data : %llx size: %d addr: %llx\n",*content, le->size, data);
 		pmfs_memlock_range(sb, data, le->size);
 		pmfs_flush_buffer(data, le->size, false);
 	}
@@ -204,7 +204,7 @@ static void pmfs_undo_transaction(struct super_block *sb,
 	mutex_lock(&sbi->s_lock);
 	struct pmfs_blocknode *hint = NULL;
 	pmfs_block_set_t *block_set = trans->free_blocks;
-	
+	printk("Undo transaction entered \n");
 	for (i = trans->num_used - 1; i >= 0; i--, le--) {
 		data = pmfs_get_block(sb, le64_to_cpu(le->addr_offset));
 		//printk("freeing blk: %llx\n",*data);
@@ -688,7 +688,8 @@ again:
 		freed_size = pmfs_free_logentries(max_log_entries);
 			if(tentatives <1){
 				pmfs_clean_journal(sb,false);
-			goto retry;
+				tentatives++;
+				goto retry;
 	}
 		if ((avail_size + freed_size) < req_size)
 			goto journal_full;
@@ -824,9 +825,9 @@ int __pmfs_add_logentry(struct super_block *sb,
 		le->size = le_size;
 		size -= le_size;
 		if(should_crash()){
-			attempt_crash("Crashed - __pmfs_add_logentry 2\n",1);
-			//printk("Crashed - __pmfs_add_logentry 2\n");
-			//return -EINVAL;
+			//attempt_crash("Crashed - __pmfs_add_logentry 2\n",1);
+			printk("Crashed - __pmfs_add_logentry 2\n");
+			return -EINVAL;
 		}
 		if (le_size)
 			memcpy(le->data, addr, le_size);
@@ -909,7 +910,7 @@ int pmfs_commit_transaction(struct super_block *sb,
 	}
 	else
 		pmfs_free_transaction(trans);
-	printk("Exiting commit transaction \n");
+	//printk("Exitting commit transaction \n");
 	return 0;
 }
 
