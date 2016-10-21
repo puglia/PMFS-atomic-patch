@@ -2701,7 +2701,6 @@ static int do_wp_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	unsigned long mmun_start = 0;	/* For mmu_notifiers */
 	unsigned long mmun_end = 0;	/* For mmu_notifiers */
 	int is_xip_cow = vma->vm_flags & VM_XIP_COW;
-
 	old_page = vm_normal_page(vma, address, orig_pte);
 	if (!old_page) {
 		/*

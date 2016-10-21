@@ -1370,6 +1370,10 @@ mshared:
 	    ((vm_flags & VM_LOCKED) ||
 	     (flags & (MAP_POPULATE | MAP_NONBLOCK)) == MAP_POPULATE))
 		*populate = len;
+	if(is_xip_cow && (flags & MAP_POPULATE)){
+		*populate = len;
+		printk("XIP_COW - populate : %ld\n",*populate);
+	}
 	return addr;
 }
 

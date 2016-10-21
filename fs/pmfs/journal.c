@@ -41,7 +41,7 @@ pmfs_atomic_mapping_t	*atomic_maps[MAX_ATOMIC_MAPPINGS];
 pmfs_atomic_mapping_t *get_atm_mapping(pid_t pid, u64 ino){
 	int i;
 	for(i =0; i<MAX_ATOMIC_MAPPINGS; i++)
-		if(atomic_maps[i]->owner == pid && atomic_maps[i]->inode_n == ino)
+		if(atomic_maps[i] && atomic_maps[i]->owner == pid && atomic_maps[i]->inode_n == ino)
 			return atomic_maps[i];
 	printk("Mapping not found\n");
 	return NULL;
@@ -104,14 +104,16 @@ void finish_atm_mapping(struct inode *inode, int rollback){
 	struct super_block *sb = inode->i_sb;
 	struct pmfs_inode *pi;
 	pmfs_atomic_mapping_t *mapping;
-
+	
 	pi = pmfs_get_inode(sb, inode->i_ino);
+	printk("finish_atm_mapping \n");
 	
 	mapping = get_atm_mapping(current->pid, inode->i_ino);
 	if(!mapping)
 		return;
+
 	printk("Ending Atomic Mapping \n");
-		
+	
 	attempt_crash("finish_atm_mapping 1",0);
 	
 	if(rollback)
@@ -119,6 +121,7 @@ void finish_atm_mapping(struct inode *inode, int rollback){
 	else
 		pmfs_commit_transaction(sb, mapping->trans_t);
 	attempt_crash("finish_atm_mapping 2",0);
+	printk("remove_atm_mapping \n");
 	remove_atm_mapping(current->pid, inode->i_ino);
 }
 
@@ -218,6 +221,7 @@ static void pmfs_undo_transaction(struct super_block *sb,
 			pmfs_undo_logentry(sb, le);
 	}
 	mutex_unlock(&sbi->s_lock);
+	printk("Undone \n");
 	if(crashed)
 		attempt_crash("pmfs_undo_transaction 1",1);
 }
@@ -814,9 +818,10 @@ int __pmfs_add_logentry(struct super_block *sb,
 		return -ENOMEM;
 	}
 	if(should_crash()){
-		attempt_crash("Crashed - __pmfs_add_logentry 1\n",1);//printk("Crashed - __pmfs_add_logentry 1\n");
+		attempt_crash("Crashed - __pmfs_add_logentry 1\n",1);
 		//return -EINVAL;
 	}
+	printk("add_logentry: %lx\n", cpu_to_le64(le_start));
 	pmfs_memunlock_range(sb, le, sizeof(*le) * num_les);
 	for (i = 0; i < num_les; i++) {
 		le->addr_offset = cpu_to_le64(le_start);
@@ -875,8 +880,8 @@ int pmfs_free_trans_blocks(void *data){
 	
 	if(!block_set)
 		return 0;
-	printk("Total bollocks: %d  \n",block_set->total_blocks);
-	//printk("Total bollocks: %d \n",ftrofdwulf);
+	//printk("Total bollocks: %d  \n",block_set->total_blocks);
+	
 	struct pmfs_blocknode *hint = NULL;
 
 	mutex_lock(&sbi->s_lock);

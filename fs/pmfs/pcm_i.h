@@ -180,7 +180,7 @@ emulate_latency_ns(int ns)
 # endif
 
 static inline int should_crash(){
-	/*unsigned int buf,random_number;
+	unsigned int buf,random_number;
 	int *a,*b;
 	unsigned long long *seed;
 	if(get_error())
@@ -192,7 +192,7 @@ static inline int should_crash(){
 	if (random_number <= CRASH_LIKELIHOOD){
 		printk("attempt_crash: buf:%d   random_number:%d  \n",buf,random_number);
 		return 1;
-	}*/
+	}
 
 	return 0;
 }

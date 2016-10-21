@@ -316,7 +316,7 @@ go_on:
 
 	if(datasync == 14)
 		goto writeback;
-	printk("total pages: %ld \n",list_size);
+
 	mutex_lock(&sbi->s_lock);
 	for(i=0;i<list_size;i++){
 		ptep = pte_list[i];
