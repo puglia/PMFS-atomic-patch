@@ -188,7 +188,6 @@ static inline int should_crash(){
 	seed = asm_rdtsc();
 	get_random_bytes(&buf,sizeof(buf));
 	random_number = buf % TOTAL_OUTCOMES_NUM;
-	//printk("attempt_crash: buf:%d   random_number:%d  \n",buf,random_number);
 	if (random_number <= CRASH_LIKELIHOOD){
 		printk("attempt_crash: buf:%d   random_number:%d  \n",buf,random_number);
 		return 1;
@@ -196,6 +195,23 @@ static inline int should_crash(){
 
 	return 0;
 }
+
+/*static inline int should_crash_dbg(){
+	unsigned int buf,random_number;
+	int *a,*b;
+	unsigned long long *seed;
+	if(get_error())
+		return 0;
+	seed = asm_rdtsc();
+	get_random_bytes(&buf,sizeof(buf));
+	random_number = buf % TOTAL_OUTCOMES_NUM;
+	if (random_number <= CRASH_LIKELIHOOD){
+		printk("attempt_crash: buf:%d   random_number:%d  \n",buf,random_number);
+		return 1;
+	}
+
+	return 0;
+}*/
 
 static inline int attempt_crash(char *message,int force){
 	

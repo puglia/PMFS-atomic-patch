@@ -121,7 +121,6 @@ void finish_atm_mapping(struct inode *inode, int rollback){
 	else
 		pmfs_commit_transaction(sb, mapping->trans_t);
 	attempt_crash("finish_atm_mapping 2",0);
-	printk("remove_atm_mapping \n");
 	remove_atm_mapping(current->pid, inode->i_ino);
 }
 
@@ -221,7 +220,6 @@ static void pmfs_undo_transaction(struct super_block *sb,
 			pmfs_undo_logentry(sb, le);
 	}
 	mutex_unlock(&sbi->s_lock);
-	printk("Undone \n");
 	if(crashed)
 		attempt_crash("pmfs_undo_transaction 1",1);
 }
@@ -821,7 +819,7 @@ int __pmfs_add_logentry(struct super_block *sb,
 		attempt_crash("Crashed - __pmfs_add_logentry 1\n",1);
 		//return -EINVAL;
 	}
-	printk("add_logentry: %lx\n", cpu_to_le64(le_start));
+	//printk("add_logentry: %lx\n", cpu_to_le64(le_start));
 	pmfs_memunlock_range(sb, le, sizeof(*le) * num_les);
 	for (i = 0; i < num_les; i++) {
 		le->addr_offset = cpu_to_le64(le_start);

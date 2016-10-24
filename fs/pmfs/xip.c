@@ -143,7 +143,7 @@ int pmfs_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf){
 	}	
 	emulate_latency(PAGE_CACHE_SIZE - remain);
 	//printk("XIP_ATOMIC   latency %ld \n",PAGE_CACHE_SIZE - remain);
-	printk("XIP_ATOMIC   accessed block: %llx   new block %llx \n",vmf->pgoff,blocknr);
+	//printk("XIP_ATOMIC   accessed block: %llx   new block %llx \n",vmf->pgoff,blocknr);
 
 	err = log_new_block(trans, sb, pi, vmf->pgoff, pi->root,pi->height, blocknr);
 	if(err)

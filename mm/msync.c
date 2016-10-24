@@ -14,6 +14,46 @@
 #include <linux/syscalls.h>
 #include <linux/sched.h>
 
+void mk_pageread(struct vm_area_struct *vma,loff_t start, loff_t end){
+	struct mm_struct *mm = current->mm;
+	spinlock_t *ptl;
+	pte_t *ptep, ptec;
+	int i,ret = 0;
+	unsigned long addr, pfn;
+
+	addr = start;
+	do{
+		//printk(KERN_NOTICE "XIP_ATOMIC - mk_pageread - following address %lx \n",addr);
+		ret = pte_follow(mm, addr, &ptep, &ptl);
+
+		if(ret){
+			//printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - error finding pte %d \n",ret);
+			goto go_on;
+		}
+		/*pfn = pte_pfn(*ptep);
+		if(!pfn_valid(pfn)){
+			printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - page is empty \n");
+			pte_unmap_unlock(ptep,ptl);
+			goto go_on;
+		}*/
+
+		if(!pte_dirty(*ptep)){
+			//printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - page not dirty\n");
+			goto go_on_unlock;
+		}
+		ptep_set_wrprotect(mm, addr,ptep);
+		ptec = pte_mkclean(*ptep);
+		ptep_set_access_flags(vma,addr,ptep,ptec,1);
+		update_mmu_cache(vma, addr, ptep);
+
+go_on_unlock:	
+		pte_unmap_unlock(ptep,ptl);
+go_on:
+		addr += PAGE_SIZE;
+	}while(addr < end);
+}
+
+
 /*
  * MS_SYNC syncs the entire file - including mappings.
  *
@@ -87,16 +127,14 @@ SYSCALL_DEFINE3(msync, unsigned long, start, size_t, len, int, flags)
 			up_read(&mm->mmap_sem);
 			if(vma->vm_flags & VM_XIP_COW){		
 			error = vfs_fsync_range(file,fsync_start, fsync_end - 1, flags & 0x008?13:flags & 0x010?14:flags & 0x020?15:flags & 0x040?16:flags & 0x080?17:flags & 0x100?18:12 );
-			if(flags & 0x100){printk("flushy\n");
-				goto flushy;}
-
 			}
 			else{
-flushy:
 				file_offset = vma->vm_pgoff * PAGE_SIZE;
 				error = vfs_fsync_range(file, 
 						file_offset + fsync_start - vma->vm_start,
 						file_offset + fsync_end - vma->vm_start - 1, (vma->vm_flags & VM_ATOMIC)?11:0);
+				if(vma->vm_flags & VM_ATOMIC)
+					mk_pageread(vma,fsync_start, fsync_end -1);
 			}
 			fput(file);
 			if (error || start >= end)
