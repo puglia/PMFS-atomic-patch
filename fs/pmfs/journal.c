@@ -819,7 +819,7 @@ int __pmfs_add_logentry(struct super_block *sb,
 		attempt_crash("Crashed - __pmfs_add_logentry 1\n",1);
 		//return -EINVAL;
 	}
-	//printk("add_logentry: %lx\n", cpu_to_le64(le_start));
+	printk("add_logentry: %lx\n", cpu_to_le64(le_start));
 	pmfs_memunlock_range(sb, le, sizeof(*le) * num_les);
 	for (i = 0; i < num_les; i++) {
 		le->addr_offset = cpu_to_le64(le_start);

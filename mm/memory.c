@@ -2949,12 +2949,10 @@ gotten:
 			//get_page(new_page);
 			inc_mm_counter_fast(mm, MM_FILEPAGES);
 			page_add_file_rmap(new_page);
-			//if(is_xip_cow)
-			//	printk(KERN_NOTICE "XIP_COW - do_wp_page - page added to the page table!");
 			
 			dirty_page = new_page;
 			get_page(dirty_page);
-			
+			printk("XIP_COW - page is going dirty! \n");
 		}
 		else
 			page_add_new_anon_rmap(new_page, vma, address);

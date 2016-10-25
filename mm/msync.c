@@ -13,8 +13,9 @@
 #include <linux/file.h>
 #include <linux/syscalls.h>
 #include <linux/sched.h>
+#include <asm/tlb.h>
 
-void mk_pageread(struct vm_area_struct *vma,loff_t start, loff_t end){
+void mk_pageclean(struct vm_area_struct *vma,loff_t start, loff_t end, int mkread){
 	struct mm_struct *mm = current->mm;
 	spinlock_t *ptl;
 	pte_t *ptep, ptec;
@@ -27,7 +28,7 @@ void mk_pageread(struct vm_area_struct *vma,loff_t start, loff_t end){
 		ret = pte_follow(mm, addr, &ptep, &ptl);
 
 		if(ret){
-			//printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - error finding pte %d \n",ret);
+			printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - error finding pte %d \n",ret);
 			goto go_on;
 		}
 		/*pfn = pte_pfn(*ptep);
@@ -36,15 +37,29 @@ void mk_pageread(struct vm_area_struct *vma,loff_t start, loff_t end){
 			pte_unmap_unlock(ptep,ptl);
 			goto go_on;
 		}*/
-
+		
 		if(!pte_dirty(*ptep)){
-			//printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - page not dirty\n");
-			goto go_on_unlock;
+			printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - page not dirty\n");
+			//goto go_on_unlock;
 		}
-		ptep_set_wrprotect(mm, addr,ptep);
-		ptec = pte_mkclean(*ptep);
-		ptep_set_access_flags(vma,addr,ptep,ptec,1);
+		else {
+			printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - page dirty\n");
+			ptec = pte_mkclean(*ptep);
+			ptep_set_access_flags(vma,addr,ptep,ptec,1);
+		}
+		
+		if(mkread){
+			ptec = *ptep;
+			ptep_set_wrprotect(mm, addr,ptep);
+			ptec = pte_wrprotect(ptec);
+		}
+		if(pte_write(*ptep))
+			printk("PTE is indeed writtable\n");
+		else
+			printk("PTE is readonly\n");
+		set_pte_at(mm,addr,ptep,ptec);
 		update_mmu_cache(vma, addr, ptep);
+		flush_tlb_page(vma, addr);
 
 go_on_unlock:	
 		pte_unmap_unlock(ptep,ptl);
@@ -127,6 +142,7 @@ SYSCALL_DEFINE3(msync, unsigned long, start, size_t, len, int, flags)
 			up_read(&mm->mmap_sem);
 			if(vma->vm_flags & VM_XIP_COW){		
 			error = vfs_fsync_range(file,fsync_start, fsync_end - 1, flags & 0x008?13:flags & 0x010?14:flags & 0x020?15:flags & 0x040?16:flags & 0x080?17:flags & 0x100?18:12 );
+			mk_pageclean(vma,fsync_start, fsync_end -1,0);
 			}
 			else{
 				file_offset = vma->vm_pgoff * PAGE_SIZE;
@@ -134,7 +150,7 @@ SYSCALL_DEFINE3(msync, unsigned long, start, size_t, len, int, flags)
 						file_offset + fsync_start - vma->vm_start,
 						file_offset + fsync_end - vma->vm_start - 1, (vma->vm_flags & VM_ATOMIC)?11:0);
 				if(vma->vm_flags & VM_ATOMIC)
-					mk_pageread(vma,fsync_start, fsync_end -1);
+					mk_pageclean(vma,fsync_start, fsync_end -1,1);
 			}
 			fput(file);
 			if (error || start >= end)

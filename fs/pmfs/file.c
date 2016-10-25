@@ -316,7 +316,7 @@ go_on:
 
 	if(datasync == 14)
 		goto writeback;
-
+	printk("list_size:%d\n",list_size);
 	mutex_lock(&sbi->s_lock);
 	for(i=0;i<list_size;i++){
 		ptep = pte_list[i];
@@ -341,8 +341,8 @@ writeback:
 			ret = pmfs_writeback(page, inode->i_mapping,datasync - 12);
 			attempt_crash("pmfs_cow_sync 5",0);
 			if(!ret){
-				ptec = pte_mkclean(*ptep);
-				set_pte(ptep, ptec);
+				//ptec = pte_mkclean(*ptep);
+				//set_pte(ptep, ptec);
 				if(datasync == 17)
 					pmfs_flush_buffer(page_address(page), PAGE_CACHE_SIZE, 0);
 
