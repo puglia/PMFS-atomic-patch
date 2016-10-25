@@ -23,8 +23,8 @@
 # Use is subject to license terms.
 #
 
-set $dir=/tmp
-set $nfiles=100000
+set $dir=/mnt/pmfs
+set $nfiles=10000
 set $meandirwidth=20
 set $meanfilesize=128k
 set $nthreads=50
@@ -38,13 +38,19 @@ define process name=filereader,instances=1
   thread name=filereaderthread,memsize=10m,instances=$nthreads
   {
     flowop createfile name=createfile1,filesetname=bigfileset,fd=1
+    flowop mmap name=mapfile1,filesetname=bigfileset,fd=1
     flowop mmap_writewholefile name=wrtfile1,srcfd=1,fd=1,iosize=$iosize
+    flowop msync name=syncfile1,filesetname=bigfileset,fd=1
+    flowop munmap name=munmapfile1,filesetname=bigfileset,fd=1
     flowop closefile name=closefile1,fd=1
     flowop openfile name=openfile1,filesetname=bigfileset,fd=1
     flowop appendfilerand name=appendfilerand1,iosize=$meanappendsize,fd=1
     flowop closefile name=closefile2,fd=1
     flowop openfile name=openfile2,filesetname=bigfileset,fd=1
-    flowop readwholefile name=readfile1,fd=1,iosize=$iosize
+    flowop mmap name=mapfile2,filesetname=bigfileset,fd=1
+    flowop mmap_readwholefile name=readfile1,srcfd=1,fd=1,iosize=$iosize
+    flowop msync name=syncfile2,filesetname=bigfileset,fd=1
+    flowop munmap name=munmapfile2,filesetname=bigfileset,fd=1
     flowop closefile name=closefile3,fd=1
     flowop deletefile name=deletefile1,filesetname=bigfileset
     flowop statfile name=statfile1,filesetname=bigfileset

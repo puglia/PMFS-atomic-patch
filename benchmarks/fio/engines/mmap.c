@@ -25,10 +25,10 @@
 #define MAP_XIP_COW 	0x04
 #define MAP_ATOMIC	0x08
 
-#define XIP_COW 1
+#define XIP_COW 2
 #define FLUSH_CACHE 0
 #define TIME_CONT 0
-#define WRITES_BEFORE_MSYNC 2
+#define WRITES_BEFORE_MSYNC 1
 #define MILLIS_BEFORE_MSYNC 4000
 
 static unsigned long mmap_map_size;
@@ -130,7 +130,7 @@ unsigned long total_wr,total_ms;
 static int should_msync(){
 	if(!TIME_CONT){
 		auxcont++;
-		if(auxcont <= WRITES_BEFORE_MSYNC)
+		if(auxcont < WRITES_BEFORE_MSYNC)
 			return 0;
 		auxcont = 0;
 		return 1;

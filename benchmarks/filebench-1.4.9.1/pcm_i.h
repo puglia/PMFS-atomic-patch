@@ -1,9 +1,9 @@
-#include <linux/random.h>
-#include <linux/sched.h>
-#include "pmfs.h"
-
+#include <stdint.h>
+#include <mmintrin.h>
 
 #define _PCM_INTERNAL_H
+
+#define CACHELINE_SIZE  (64)
 
 #define NS2CYCLE(__ns) ((__ns) * M_PCM_CPUFREQ / 1000)
 #define CYCLE2NS(__cycles) ((__cycles) * 1000 / M_PCM_CPUFREQ)
@@ -13,7 +13,7 @@
 #define BLOCK_ADDR(addr) ( (pcm_word_t *) (((pcm_word_t) (addr)) & ~(CACHELINE_SIZE - 1)) )
 #define INDEX_ADDR(addr) ( (pcm_word_t *) (((pcm_word_t) (addr)) & (CACHELINE_SIZE - 1)) )
 
-#define M_PCM_LATENCY_WRITE 150
+#define M_PCM_LATENCY_WRITE 30//150
 
 #define M_PCM_BANDWIDTH_MB 1200
 
@@ -21,22 +21,12 @@
 
 #define M_PCM_CPUFREQ 3000
 
-#define TOTAL_OUTCOMES_NUM 10000000
-
-#define CRASH_LIKELIHOOD 50
-
-
-
 typedef uintptr_t pcm_word_t;
 typedef uint64_t pcm_hrtime_t;
 
+//spinlock_t pcm_lock;
+
 extern void emulate_latency(size_t size);
-extern void set_error();
-extern void reset_error();
-extern int get_error();
-extern void lock_first();
-extern void set_sb(struct super_block *sb);
-extern void set_inode(struct inode *inode);
 
 static inline void asm_cpuid(void) {
 	asm volatile( "cpuid" :::"rax", "rbx", "rcx", "rdx");
@@ -165,7 +155,7 @@ emulate_latency_ns(int ns)
 	//printk("emulating latency: %dns",ns);
 	start = asm_rdtsc();
 	cycles = NS2CYCLE(ns);
-
+	
 	do { 
 		/* RDTSC doesn't necessarily wait for previous instructions to complete 
 		 * so a serializing instruction is usually used to ensure previous 
@@ -179,49 +169,26 @@ emulate_latency_ns(int ns)
 
 # endif
 
-static inline int should_crash(){
-	/*unsigned int buf,random_number;
-	int *a,*b;
-	unsigned long long *seed;
-	if(get_error())
-		return 0;
-	seed = asm_rdtsc();
-	get_random_bytes(&buf,sizeof(buf));
-	random_number = buf % TOTAL_OUTCOMES_NUM;
-	if (random_number <= CRASH_LIKELIHOOD){
-		printk("attempt_crash: buf:%d   random_number:%d  \n",buf,random_number);
-		return 1;
-	}*/
 
-	return 0;
+ void emulate_latency(size_t size){
+	int              extra_latency;
+	extra_latency = (int) size * (1-(float) (((float) M_PCM_BANDWIDTH_MB)/1000)/(((float) DRAM_BANDWIDTH_MB)/1000))/(((float)M_PCM_BANDWIDTH_MB)/1000);
+	//spin_lock(&pcm_lock);
+	emulate_latency_ns(extra_latency);
+	//spin_unlock(&pcm_lock);
 }
 
-/*static inline int should_crash_dbg(){
-	unsigned int buf,random_number;
-	int *a,*b;
-	unsigned long long *seed;
-	if(get_error())
-		return 0;
-	seed = asm_rdtsc();
-	get_random_bytes(&buf,sizeof(buf));
-	random_number = buf % TOTAL_OUTCOMES_NUM;
-	if (random_number <= CRASH_LIKELIHOOD){
-		printk("attempt_crash: buf:%d   random_number:%d  \n",buf,random_number);
-		return 1;
-	}
-
-	return 0;
-}*/
-
-static inline int attempt_crash(char *message,int force){
-	
-	if (should_crash() || force) {
-		set_error();
-		lock_first();
-		printk("Crashed!  - %s\n",message);
-		BUG();//memcpy(a,b,64);
-		return 1;
-	}
-
-	return 0;
+static inline void pmfs_flush_buffer(void *buf, uint32_t len, int fence)
+{
+	uint32_t i;
+	len = len + ((unsigned long)(buf) & (CACHELINE_SIZE - 1));
+	for (i = 0; i < len; i += CACHELINE_SIZE)
+		asm volatile ("clflush %0\n" : "+m" (*(char *)(buf+i)));
+	/* Do a fence only if asked. We often don't need to do a fence
+	 * immediately after clflush because even if we get context switched
+	 * between clflush and subsequent fence, the context switch operation
+	 * provides implicit fence. */
+	if (fence)
+		asm volatile ("sfence\n" : : );
 }
+
