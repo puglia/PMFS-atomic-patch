@@ -2952,7 +2952,7 @@ gotten:
 			
 			dirty_page = new_page;
 			get_page(dirty_page);
-			printk("XIP_COW - page is going dirty! \n");
+			//printk("XIP_COW - page is going dirty! \n");
 		}
 		else
 			page_add_new_anon_rmap(new_page, vma, address);

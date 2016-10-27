@@ -681,8 +681,6 @@ again:
 	avail_size = (tail >= head) ?
 		(sbi->jsize - (tail - head)) : (head - tail);
 	avail_size = avail_size - LOGENTRY_SIZE;
-	//printk(" --- tail %d head %d gen_id %d\n",tail, head, trans->gen_id);
-	//printk(" --- available size %d   required size %d\n",avail_size,req_size);
 
 	if (avail_size < req_size) {
 		uint32_t freed_size;
@@ -726,6 +724,8 @@ again:
 	if ((sbi->jsize - avail_size) > (sbi->jsize >> 3))
 		wakeup_log_cleaner(sbi);
 
+	printk(" --- tail %lx head %lx gen_id %d\n",tail, head, trans->gen_id);
+	printk(" --- available size %d   required size %d\n",avail_size,req_size);
 	pmfs_dbg_trans("new transaction tid %d nle %d avl sz %x sa %llx\n",
 		trans->transaction_id, max_log_entries, avail_size, base);
 	trans->start_addr = pmfs_get_block(sb, base);
@@ -815,11 +815,11 @@ int __pmfs_add_logentry(struct super_block *sb,
 		dump_stack();
 		return -ENOMEM;
 	}
-	if(should_crash()){
+	if(should_crash_dbg()){
 		attempt_crash("Crashed - __pmfs_add_logentry 1\n",1);
 		//return -EINVAL;
 	}
-	//printk("add_logentry: %lx\n", cpu_to_le64(le_start));
+	printk("add_logentry: %lx\n", cpu_to_le64(le_start));
 	pmfs_memunlock_range(sb, le, sizeof(*le) * num_les);
 	for (i = 0; i < num_les; i++) {
 		le->addr_offset = cpu_to_le64(le_start);
@@ -1069,11 +1069,12 @@ int pmfs_recover_journal(struct super_block *sb)
 	uint32_t head = le32_to_cpu(journal->head);
 	uint16_t gen_id = le16_to_cpu(journal->gen_id);
 	printk("Entered pmfs_recover_journal\n");
+	printk("PMFS: journal recovery. head:tail %x:%x gen_id %d\n",
+		head, tail, gen_id);
 	/* is the journal empty? true if unmounted properly. */
 	if (head == tail)
 		return 0;
-	/*pmfs_dbg*/printk("PMFS: journal recovery. head:tail %x:%x gen_id %d\n",
-		head, tail, gen_id);
+	/*pmfs_dbg*/
 	if (sbi->redo_log)
 		pmfs_recover_redo_journal(sb);
 	else

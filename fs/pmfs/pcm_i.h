@@ -21,7 +21,7 @@
 
 #define M_PCM_CPUFREQ 3000
 
-#define TOTAL_OUTCOMES_NUM 10000000
+#define TOTAL_OUTCOMES_NUM 1000000
 
 #define CRASH_LIKELIHOOD 50
 
@@ -183,7 +183,7 @@ static inline int should_crash(){
 	unsigned int buf,random_number;
 	int *a,*b;
 	unsigned long long *seed;
-	if(get_error())
+	/*if(get_error())
 		return 0;
 	seed = asm_rdtsc();
 	get_random_bytes(&buf,sizeof(buf));
@@ -191,12 +191,12 @@ static inline int should_crash(){
 	if (random_number <= CRASH_LIKELIHOOD){
 		printk("attempt_crash: buf:%d   random_number:%d  \n",buf,random_number);
 		return 1;
-	}
+	}*/
 
 	return 0;
 }
 
-/*static inline int should_crash_dbg(){
+static inline int should_crash_dbg(){
 	unsigned int buf,random_number;
 	int *a,*b;
 	unsigned long long *seed;
@@ -211,7 +211,7 @@ static inline int should_crash(){
 	}
 
 	return 0;
-}*/
+}
 
 static inline int attempt_crash(char *message,int force){
 	
