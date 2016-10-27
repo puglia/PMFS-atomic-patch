@@ -39,13 +39,13 @@ void mk_pageclean(struct vm_area_struct *vma,loff_t start, loff_t end, int mkrea
 		}*/
 		
 		if(!pte_dirty(*ptep)){
-			printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - page not dirty\n");
+			//printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - page not dirty\n");
 			//goto go_on_unlock;
 		}
 		else {
-			printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - page dirty\n");
-			ptec = pte_mkclean(*ptep);
-			ptep_set_access_flags(vma,addr,ptep,ptec,1);
+			//printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - page dirty\n");
+			//ptec = pte_mkclean(*ptep);
+			//ptep_set_access_flags(vma,addr,ptep,ptec,1);
 		}
 		
 		if(mkread){
@@ -53,12 +53,9 @@ void mk_pageclean(struct vm_area_struct *vma,loff_t start, loff_t end, int mkrea
 			ptep_set_wrprotect(mm, addr,ptep);
 			ptec = pte_wrprotect(ptec);
 		}
-		if(pte_write(*ptep))
-			printk("PTE is indeed writtable\n");
-		else
-			printk("PTE is readonly\n");
-		set_pte_at(mm,addr,ptep,ptec);
-		update_mmu_cache(vma, addr, ptep);
+
+		//set_pte_at(mm,addr,ptep,ptec);
+		//update_mmu_cache(vma, addr, ptep);
 		flush_tlb_page(vma, addr);
 
 go_on_unlock:	

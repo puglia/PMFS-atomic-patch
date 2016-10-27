@@ -341,8 +341,8 @@ writeback:
 			ret = pmfs_writeback(page, inode->i_mapping,datasync - 12);
 			attempt_crash("pmfs_cow_sync 5",0);
 			if(!ret){
-				//ptec = pte_mkclean(*ptep);
-				//set_pte(ptep, ptec);
+				ptec = pte_mkclean(*ptep);
+				set_pte(ptep, ptec);
 				if(datasync == 17)
 					pmfs_flush_buffer(page_address(page), PAGE_CACHE_SIZE, 0);
 

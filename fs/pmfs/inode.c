@@ -711,7 +711,7 @@ static int rec_cow_block(pmfs_transaction_t *trans,
 			 * modifying */
 			le_size = sizeof(__le64);
 			attempt_crash("rec_alloc 1",0);
-			printk("adding logentry\n");
+			//printk("adding logentry\n");
 			pmfs_add_logentry(sb, trans, &node[index],
 				le_size, LE_DATA);
 			attempt_crash("rec_alloc 2",0);
