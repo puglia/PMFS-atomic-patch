@@ -28,6 +28,7 @@ pmfs_free_block_request_t *dequeue_request(){
 
 	temp = requests[atomic_read(&request_index) - 1];
 	atomic_dec(&request_index);
+	printk("return request \n");
 	return temp;
 }
 

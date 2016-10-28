@@ -245,7 +245,7 @@ static int pmfs_cow_sync(struct file *filp, struct inode *inode, loff_t start, l
 	int i,ret = 0;
 	int list_size = 0;
 	end += 1;
-	printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - entered: start %llx end %llx \n",start, end);
+	//printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - entered: start %llx end %llx \n",start, end);
 	
 	/*first update and log the inode*/
 	sb_start_write(inode->i_sb);

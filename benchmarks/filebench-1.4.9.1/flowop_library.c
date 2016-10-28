@@ -2704,7 +2704,9 @@ flowoplib_mmap_appendfilerand(threadflow_t *threadflow, flowop_t *flowop)
 		//printf("truncating %d to %d\n",sb.st_size,wss);
 		ftruncate(fdesc->fd_num,(wss + appendsize));
 	}
-
+	
+	printf("iosize : %llu\n",iosize);
+	printf("appendsize : %llu\n",appendsize);
 	/* Measure time to write bytes */
 	flowop_beginop(threadflow, flowop);
 	memcpy(p+wss,iobuf,appendsize);
@@ -2800,7 +2802,7 @@ flowoplib_mmap(threadflow_t *threadflow, flowop_t *flowop)
 	off64_t bytes = 0;
 	fb_fdesc_t *fdesc;
 	int srcfd = flowop->fo_srcfdnumber;
-	int ret;
+	int ret, append_size;
 	void *p;
 
 	/* get the file to use */
@@ -2820,7 +2822,7 @@ flowoplib_mmap(threadflow_t *threadflow, flowop_t *flowop)
 		wss = file->fse_size;
 
 	//printf("mmap real size - file desc a:%ld\n",fdesc->fd_num);
-
+	append_size=avd_get_int(flowop->fo_iosize);
 	fstat (fdesc->fd_num, &sb);
 	//printf("entered  mmap - file size:%ld\n",wss);
 	//printf("mmap real size - file size:%ld\n",sb.st_size);
@@ -2832,9 +2834,10 @@ flowoplib_mmap(threadflow_t *threadflow, flowop_t *flowop)
 	/* Measure time to write bytes */
 	flowop_beginop(threadflow, flowop);
 	//printf("MMAP wss: %d\n",wss);
-	p = mmap(NULL, wss, PROT_READ | PROT_WRITE, MAP_TYPE , fdesc->fd_num, 0);
+	p = mmap(NULL, wss + append_size, PROT_READ | PROT_WRITE, MAP_TYPE , fdesc->fd_num, 0);
+	printf("mmap error wss %ld  iosize: %ld\n",wss , append_size);
 	if (p == MAP_FAILED) {
-                printf("mmap error\n");
+                printf("mmap error wss %ld  iosize: %ld\n",wss , append_size);
                 return FILEBENCH_ERROR;
         }
 	

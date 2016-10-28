@@ -72,7 +72,7 @@ int new_atm_mapping(struct inode *inode){
 	atm_mapping->trans_t = pmfs_new_cow_transaction(sb,nblocks,pi->i_blk_type);
 	atm_mapping->hits = 0;
 	//attempt_crash("new_atm_mapping\n");
-	printk("Owner: %d  inode %d  blocks %d size%ld \n",current->pid,inode->i_ino,nblocks,inode->i_size );
+	//printk("Owner: %d  inode %d  blocks %d size%ld \n",current->pid,inode->i_ino,nblocks,inode->i_size );
 	for(i =0; i<MAX_ATOMIC_MAPPINGS; i++)
 		if(!atomic_maps[i]){
 			atomic_maps[i] = atm_mapping;
@@ -389,7 +389,7 @@ static uint32_t pmfs_process_transaction(struct super_block *sb, uint32_t head,
 			head = new_head;
 			if ((le->type & LE_COMMIT) && sbi->redo_log)
 				pmfs_redo_transaction(sb, &trans, recover);
-			printk("Commit or aborted - head: %lx \n",head);
+			//printk("Commit or aborted - head: %lx \n",head);
 			if (gen_id == MAX_GEN_ID) {
 				if ((le->type & LE_COMMIT) && sbi->redo_log) {
 					PERSISTENT_MARK();
@@ -413,7 +413,7 @@ static uint32_t pmfs_process_transaction(struct super_block *sb, uint32_t head,
 				if (gen_id == MAX_GEN_ID)
 					pmfs_invalidate_logentries(sb, &trans);
 			}
-			printk("Got here - head: %lx \n",head);
+			//printk("Got here - head: %lx \n",head);
 			pmfs_dbg_trans("no cmt tid %d sa %p nle %d tail %x"
 			" gen %d\n",
 			trans.transaction_id,trans.start_addr,trans.num_entries,
@@ -445,16 +445,16 @@ static void pmfs_clean_journal(struct super_block *sb, bool unmount)
 	tail_genid = le64_to_cpu(*ptr_tail_genid);
 	tail = tail_genid & 0xFFFFFFFF;
 	gen_id = (tail_genid >> 32) & 0xFFFF;
-	printk("tail gen id = %d \n",gen_id);
+	//printk("tail gen id = %d \n",gen_id);
 	/* journal wraparound happened. so head points to prev generation id */
 	if (tail < head)
 		gen_id = prev_gen_id(gen_id);
-	printk("head gen id = %d \n",gen_id);
+	//printk("head gen id = %d \n",gen_id);
 	//printk("starting journal cleaning %d %d\n", head, tail);
 	pmfs_dbg_trans("starting journal cleaning %x %x\n", head, tail);
 	while (head != tail) {
 		le = (pmfs_logentry_t *)(sbi->journal_base_addr + head);
-		printk("le %lx gen = %d size %d \n",le,le16_to_cpu(le->gen_id),le->size);
+		//printk("le %lx gen = %d size %d \n",le,le16_to_cpu(le->gen_id),le->size);
 		
 		if (gen_id == le16_to_cpu(le->gen_id)) {
 			/* found a valid log entry, process the transaction */
@@ -473,8 +473,8 @@ static void pmfs_clean_journal(struct super_block *sb, bool unmount)
 				pmfs_memlock_range(sb, le, sizeof(*le));
 			}
 			head = next_log_entry(sbi->jsize, head);
-			printk("head gen %d  le gen %d \n", gen_id, le->gen_id);
-			printk("head is = %lx\n",head);
+			//printk("head gen %d  le gen %d \n", gen_id, le->gen_id);
+			//printk("head is = %lx\n",head);
 		}
 		/* handle journal wraparound */
 		if (head == 0)
@@ -483,9 +483,9 @@ static void pmfs_clean_journal(struct super_block *sb, bool unmount)
 	PERSISTENT_MARK();
 	PERSISTENT_BARRIER();
 	pmfs_memunlock_range(sb, journal, sizeof(*journal));
-	
+
+	printk("Goodbye moonmen %lx \n", last_valid_head);
 	journal->head = cpu_to_le32(last_valid_head);
-	printk("Goodbye moonmen %lx \n", journal->head);
 	pmfs_memlock_range(sb, journal, sizeof(*journal));
 	pmfs_flush_buffer(&journal->head, sizeof(journal->head), true);
 	if (unmount) {
@@ -739,9 +739,9 @@ again:
 	pmfs_dbg_trans("new transaction tid %d nle %d avl sz %x sa %llx\n",
 		trans->transaction_id, max_log_entries, avail_size, base);
 	trans->start_addr = pmfs_get_block(sb, base);
-	printk("trans journal address  %lx\n",trans->start_addr);
-	printk(" --- tail %lx head %lx gen_id %d\n",tail, head, trans->gen_id);
-	printk(" --- available size %d   required size %d\n",avail_size,req_size);
+	//printk("trans journal address  %lx\n",trans->start_addr);
+	//printk(" --- tail %lx head %lx gen_id %d\n",tail, head, trans->gen_id);
+	//printk(" --- available size %d   required size %d\n",avail_size,req_size);
 
 	trans->parent = (pmfs_transaction_t *)current->journal_info;
 	current->journal_info = trans;
@@ -828,7 +828,7 @@ int __pmfs_add_logentry(struct super_block *sb,
 		dump_stack();
 		return -ENOMEM;
 	}
-	printk("add_logentry: %lx, gen_id %lx\n", le,trans->gen_id );
+	//printk("add_logentry: %lx, gen_id %lx\n", le,trans->gen_id );
 	if(should_crash()){
 		//attempt_crash("Crashed - __pmfs_add_logentry 1\n",1);
 		//return -EINVAL;
@@ -910,7 +910,6 @@ int pmfs_free_trans_blocks(void *data){
 int pmfs_commit_transaction(struct super_block *sb,
 		pmfs_transaction_t *trans)
 {
-	int head;
 	pmfs_journal_t *journal = pmfs_get_journal(sb);
 	if (trans == NULL)
 		return 0;
@@ -922,10 +921,11 @@ int pmfs_commit_transaction(struct super_block *sb,
 	current->journal_info = trans->parent;
 	
 	if(trans->free_blocks && trans->free_blocks->total_blocks > 0){
+		printk("putting request \n");
 		enqueue_request(init_request(sb,trans));
 		wakeup_log_cleaner(PMFS_SB(sb));
-		head = le32_to_cpu(journal->head);
-		printk("pmfs_commit_transaction - head: %lx\n",head);
+		
+		//printk("pmfs_commit_transaction - head: %lx\n",head);
 		//pmfs_free_trans_blocks((void *) init_request(sb,trans));
 	}
 	else
@@ -1007,7 +1007,6 @@ static void pmfs_forward_journal(struct super_block *sb, struct pmfs_sb_info
 	barrier();
 	
 	journal->head = journal->tail;
-	printk("Cosmos without hatred :head %lx tail: %lx  \n",journal->head,journal->tail);
 	pmfs_memlock_range(sb, journal, sizeof(*journal));
 	pmfs_flush_buffer(journal, sizeof(*journal), false);
 }
