@@ -829,8 +829,8 @@ int __pmfs_add_logentry(struct super_block *sb,
 		return -ENOMEM;
 	}
 	printk("add_logentry: %lx, gen_id %lx\n", le,trans->gen_id );
-	if(should_crash_dbg()){
-		attempt_crash("Crashed - __pmfs_add_logentry 1\n",1);
+	if(should_crash()){
+		//attempt_crash("Crashed - __pmfs_add_logentry 1\n",1);
 		//return -EINVAL;
 	}
 	
@@ -843,8 +843,8 @@ int __pmfs_add_logentry(struct super_block *sb,
 		size -= le_size;
 		if(should_crash()){
 			//attempt_crash("Crashed - __pmfs_add_logentry 2\n",1);
-			printk("Crashed - __pmfs_add_logentry 2\n");
-			return -EINVAL;
+			//printk("Crashed - __pmfs_add_logentry 2\n");
+			//return -EINVAL;
 		}
 		if (le_size)
 			memcpy(le->data, addr, le_size);

@@ -710,11 +710,11 @@ static int rec_cow_block(pmfs_transaction_t *trans,
 			/* save the meta-data into the journal before
 			 * modifying */
 			le_size = sizeof(__le64);
-			attempt_crash("rec_alloc 1",0);
+			//attempt_crash("rec_alloc 1",0);
 			//printk("adding logentry\n");
 			pmfs_add_logentry(sb, trans, &node[index],
 				le_size, LE_DATA);
-			attempt_crash("rec_alloc 2",0);
+			//attempt_crash("rec_alloc 2",0);
 			//printk("XIP_COW - rec_alloc_blocks - journaled!\n");
 			//printk("XIP_COW - blocknr %llx!\n",cpu_to_le64(pmfs_get_block_off(sb,
 			//			new_blk, pi->i_blk_type)));
@@ -725,7 +725,7 @@ static int rec_cow_block(pmfs_transaction_t *trans,
 			attempt_crash("rec_alloc 3",0);
 			//__pmfs_free_block(sb, old_blk, pi->i_blk_type,NULL);
 			errval = pmfs_add_block_to_free(trans,old_blk);
-			attempt_crash("rec_alloc 4",0);
+			//attempt_crash("rec_alloc 4",0);
 			
 			if(errval < 0){
 				printk("error freeing block...\n");
@@ -746,7 +746,7 @@ static int rec_cow_block(pmfs_transaction_t *trans,
 	}
 	errval = 0;
 fail:
-	attempt_crash("rec_alloc 6",0);
+	//attempt_crash("rec_alloc 6",0);
 	return errval;
 }
 

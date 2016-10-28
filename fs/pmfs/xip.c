@@ -45,10 +45,10 @@ static int log_new_block(pmfs_transaction_t *trans,
 			printk("XIP_ATOMIC - node[index] %llx!\n",node[index]);*/
 			le_size = sizeof(__le64);
 			if(should_crash()){
-				printk("Crashed - log_new_block 1 \n");
+				/*printk("Crashed - log_new_block 1 \n");
 				errval = -ENOMEM;
 				set_error();
-				goto fail;
+				goto fail;*/
 			}
 			errval = __pmfs_add_logentry(sb, trans, &new_blk,height?&node[index]:&pi->root,
 				le_size, LE_DATA);
@@ -57,10 +57,10 @@ static int log_new_block(pmfs_transaction_t *trans,
 				goto fail;
 	
 			if(should_crash()){
-				printk("Crashed - log_new_block 2 \n");
+				/*printk("Crashed - log_new_block 2 \n");
 				errval = -ENOMEM;
 				set_error();
-				goto fail;
+				goto fail;*/
 			}
 			
 			errval = pmfs_add_block_to_free(trans,new_block);
@@ -128,18 +128,18 @@ int pmfs_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf){
 	cpy_mem = pmfs_get_block(sb,cpy_addr);
 	//attempt_crash("mkwrite 1",0);
 	if(should_crash()){
-		printk("Crashed - mkwrite 1\n");
-		set_error();
-		return VM_FAULT_ERROR;
+		//printk("Crashed - mkwrite 1\n");
+		//set_error();
+		//return VM_FAULT_ERROR;
 	}
 	pmfs_xip_mem_protect(sb, cpy_mem, PAGE_CACHE_SHIFT, 1);
 	remain = __copy_from_user_inatomic_nocache(cpy_mem, xip_mem, PAGE_CACHE_SIZE);
 	pmfs_xip_mem_protect(sb, cpy_mem, PAGE_CACHE_SHIFT, 0);
 	//attempt_crash("mkwrite 2",0);
 	if(should_crash()){
-		printk("Crashed - mkwrite 2\n");
-		set_error();
-		return VM_FAULT_ERROR;
+		//printk("Crashed - mkwrite 2\n");
+		//set_error();
+		//return VM_FAULT_ERROR;
 	}	
 	emulate_latency(PAGE_CACHE_SIZE - remain);
 	//printk("XIP_ATOMIC   latency %ld \n",PAGE_CACHE_SIZE - remain);
@@ -150,9 +150,9 @@ int pmfs_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf){
 		return VM_FAULT_ERROR;
 	
 	if(should_crash()){
-		printk("Crashed - mkwrite 3\n");
-		set_error();
-		return VM_FAULT_ERROR;
+		//printk("Crashed - mkwrite 3\n");
+		//set_error();
+		//return VM_FAULT_ERROR;
 	}	
 exception:
 	return 0;
