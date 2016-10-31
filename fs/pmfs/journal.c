@@ -463,7 +463,7 @@ static void pmfs_clean_journal(struct super_block *sb, bool unmount)
 			/* no progress was made. return */
 			if (new_head == head)
 				break;
-			printk("Setting head to %lx\n",new_head);
+
 			head = new_head;
 			last_valid_head = head;
 		} else {
@@ -484,7 +484,6 @@ static void pmfs_clean_journal(struct super_block *sb, bool unmount)
 	PERSISTENT_BARRIER();
 	pmfs_memunlock_range(sb, journal, sizeof(*journal));
 
-	printk("Goodbye moonmen %lx \n", last_valid_head);
 	journal->head = cpu_to_le32(last_valid_head);
 	pmfs_memlock_range(sb, journal, sizeof(*journal));
 	pmfs_flush_buffer(&journal->head, sizeof(journal->head), true);
@@ -892,7 +891,7 @@ int pmfs_free_trans_blocks(void *data){
 	
 	if(!block_set)
 		return 0;
-	//printk("Total bollocks: %d  \n",block_set->total_blocks);
+	printk("Total bollocks: %d  \n",block_set->total_blocks);
 	
 	struct pmfs_blocknode *hint = NULL;
 
@@ -921,12 +920,12 @@ int pmfs_commit_transaction(struct super_block *sb,
 	current->journal_info = trans->parent;
 	
 	if(trans->free_blocks && trans->free_blocks->total_blocks > 0){
-		printk("putting request \n");
-		enqueue_request(init_request(sb,trans));
-		wakeup_log_cleaner(PMFS_SB(sb));
+		
+		//enqueue_request(init_request(sb,trans));
+		//wakeup_log_cleaner(PMFS_SB(sb));
 		
 		//printk("pmfs_commit_transaction - head: %lx\n",head);
-		//pmfs_free_trans_blocks((void *) init_request(sb,trans));
+		pmfs_free_trans_blocks((void *) init_request(sb,trans));
 	}
 	else
 		pmfs_free_transaction(trans);

@@ -28,7 +28,7 @@ void mk_pageclean(struct vm_area_struct *vma,loff_t start, loff_t end, int mkrea
 		ret = pte_follow(mm, addr, &ptep, &ptl);
 
 		if(ret){
-			printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - error finding pte %d \n",ret);
+			//printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - error finding pte %d \n",ret);
 			goto go_on;
 		}
 		/*pfn = pte_pfn(*ptep);
@@ -152,6 +152,7 @@ SYSCALL_DEFINE3(msync, unsigned long, start, size_t, len, int, flags)
 			fput(file);
 			if (error || start >= end)
 				goto out;
+
 			down_read(&mm->mmap_sem);
 			vma = find_vma(mm, start);
 		} else {

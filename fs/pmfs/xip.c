@@ -161,7 +161,7 @@ exception:
 void pmfs_close_mapping(struct vm_area_struct *vma){
 	struct address_space *mapping = vma->vm_file->f_mapping;
 	struct inode *inode = mapping->host;
-	printk("XIP - Closing Mapping \n");
+	//printk("XIP - Closing Mapping \n");
 	if(!(vma->vm_flags & VM_ATOMIC))
 		return;
 	

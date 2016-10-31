@@ -723,8 +723,8 @@ static int rec_cow_block(pmfs_transaction_t *trans,
 			old_blk = pmfs_get_blocknr(sb, le64_to_cpu(node[index]),
 				    pi->i_blk_type);
 			attempt_crash("rec_alloc 3",0);
-			//__pmfs_free_block(sb, old_blk, pi->i_blk_type,NULL);
-			errval = pmfs_add_block_to_free(trans,old_blk);
+			__pmfs_free_block(sb, old_blk, pi->i_blk_type,NULL);
+			//errval = pmfs_add_block_to_free(trans,old_blk);
 			//attempt_crash("rec_alloc 4",0);
 			
 			if(errval < 0){

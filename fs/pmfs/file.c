@@ -313,7 +313,7 @@ go_on:
 		addr += PAGE_CACHE_SIZE;
 		//attempt_crash("pmfs_cow_sync 1",0);
 	}while(addr < end);
-
+	ret = 0;
 	if(datasync == 14)
 		goto writeback;
 	printk("list_size:%d\n",list_size);
