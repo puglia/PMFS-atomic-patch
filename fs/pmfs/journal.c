@@ -57,14 +57,14 @@ void remove_atm_mapping(pid_t pid, u64 ino){
 		}
 }
 
-int new_atm_mapping(struct inode *inode){
+int new_atm_mapping(struct inode *inode,long total_data){
 	struct super_block *sb = inode->i_sb;
 	struct pmfs_inode *pi;
 	int i,nblocks;
 	pmfs_atomic_mapping_t *atm_mapping;
 
 	pi = pmfs_get_inode(sb, inode->i_ino); 
-	nblocks = (inode->i_size >> sb->s_blocksize_bits) + 1;
+	nblocks = (total_data >> sb->s_blocksize_bits) + 2;
 
 	atm_mapping = vmalloc(sizeof(pmfs_atomic_mapping_t));
 	atm_mapping->owner = current->pid;
@@ -78,6 +78,7 @@ int new_atm_mapping(struct inode *inode){
 			atomic_maps[i] = atm_mapping;
 			break;
 		}
+	return 0;
 }
 
 void commit_atm_mapping(struct inode *inode){
@@ -86,11 +87,11 @@ void commit_atm_mapping(struct inode *inode){
 	pmfs_atomic_mapping_t *atm_mapping;
 	int nblocks;
 	pi = pmfs_get_inode(sb, inode->i_ino);
-	nblocks = (inode->i_size >> sb->s_blocksize_bits) + 1;
+	nblocks = atm_mapping->trans_t->num_entries;
 	atm_mapping = get_atm_mapping(current->pid, inode->i_ino);
 	if(!atm_mapping)
 		return;
-	//printk("################ HITS :%d\n",atm_mapping->hits);
+	printk("################ nblocks :%d\n",nblocks);
 	printk("trans->num_used :%d\n",atm_mapping->trans_t->num_used);
 	attempt_crash("commit_atm_mapping 1",0);
 	atm_mapping->hits = 0;
@@ -106,13 +107,13 @@ void finish_atm_mapping(struct inode *inode, int rollback){
 	pmfs_atomic_mapping_t *mapping;
 	
 	pi = pmfs_get_inode(sb, inode->i_ino);
-	printk("finish_atm_mapping \n");
+	//printk("finish_atm_mapping \n");
 	
 	mapping = get_atm_mapping(current->pid, inode->i_ino);
 	if(!mapping)
 		return;
 
-	printk("Ending Atomic Mapping \n");
+	//printk("Ending Atomic Mapping \n");
 	
 	attempt_crash("finish_atm_mapping 1",0);
 	

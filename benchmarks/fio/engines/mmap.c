@@ -152,6 +152,7 @@ static int should_msync(){
 	return 1;
 }
 int peace = 0;
+long int writen_data = 0;
 static int fio_mmapio_prep(struct thread_data *td, struct io_u *io_u)
 {
 	struct fio_file *f = io_u->file;
@@ -176,13 +177,15 @@ static int fio_mmapio_prep(struct thread_data *td, struct io_u *io_u)
 	if (f->mmap_ptr && should_msync() ) {
 		ftime(&start_ms);
 		//printf("MSYNC          \n");
-		if (msync(f->mmap_ptr, f->mmap_sz, MS_SYNC | 0x008 )) {
+		/*if (msync(f->mmap_ptr, f->mmap_sz, MS_SYNC | 0x100)) {
 			io_u->error = errno;
 			td_verror(td, io_u->error, "msync");
 			printf("msync error\n");
-		}
-
+		}*/
+	
 		ftime(&stop_ms);
+		//printf("writen_data: %ld\n",writen_data);
+		writen_data = 0;
 		total_ms += ((stop_ms.time * 1000) + stop_ms.millitm) - ((start_ms.time*1000) + start_ms.millitm);
 		int total_ovr = total_wr + total_ms;
 		
@@ -219,10 +222,11 @@ static int fio_mmapio_queue(struct thread_data *td, struct io_u *io_u)
 		memcpy(io_u->mmap_data, io_u->xfer_buf, io_u->xfer_buflen);
 		if(FLUSH_CACHE)		
 			pmfs_flush_buffer(io_u->mmap_data, io_u->xfer_buflen, 1);
-		if(XIP_COW != 1)
-			emulate_latency(io_u->xfer_buflen);
+		//if(XIP_COW != 1)
+		//	emulate_latency(io_u->xfer_buflen);
 		ftime(&stop_wr);
 		total_wr += ((stop_wr.time * 1000) + stop_wr.millitm) - ((start_wr.time*1000) + start_wr.millitm);
+		writen_data += io_u->xfer_buflen;
 	}
 	else if (ddir_sync(io_u->ddir)){	
 		/*if (msync(f->mmap_ptr, f->mmap_sz, MS_SYNC | 0x010)) {

@@ -143,7 +143,7 @@ int pmfs_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf){
 	}	
 	emulate_latency(PAGE_CACHE_SIZE - remain);
 	//printk("XIP_ATOMIC   latency %ld \n",PAGE_CACHE_SIZE - remain);
-	printk("XIP_ATOMIC   accessed block: %llx   new block %llx \n",vmf->pgoff,blocknr);
+	//printk("XIP_ATOMIC   accessed block: %llx   new block %llx \n",vmf->pgoff,blocknr);
 
 	err = log_new_block(trans, sb, pi, vmf->pgoff, pi->root,pi->height, blocknr);
 	if(err)
@@ -819,6 +819,9 @@ int pmfs_xip_file_mmap(struct file *file, struct vm_area_struct *vma)
 
 	BUG_ON(!file->f_mapping->a_ops->get_xip_mem);
 
+	long map_size = vma->vm_end - vma->vm_start;
+	printk("mapping pages: %ld\n",map_size);
+
 	file_accessed(file);
 
 	vma->vm_flags |= VM_MIXEDMAP;
@@ -831,7 +834,7 @@ int pmfs_xip_file_mmap(struct file *file, struct vm_area_struct *vma)
 			return -ENOMEM;
 		}
 		if(vma->vm_flags & VM_ATOMIC)		
-			new_atm_mapping(file->f_mapping->host);
+			new_atm_mapping(file->f_mapping->host,map_size);
 	}
 	
 	attempt_crash("pmfs_xip_file_mmap 1",0);

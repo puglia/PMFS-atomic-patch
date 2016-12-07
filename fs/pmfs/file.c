@@ -420,6 +420,7 @@ static int pmfs_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 	/* Align start and end to cacheline boundaries */
 	start = start & CACHELINE_MASK;
 	end = CACHELINE_ALIGN(end);
+	printk("flushing cache from %llx to %llx \n",start,end);
 	do {
 		void *xip_mem;
 		pgoff_t pgoff;
