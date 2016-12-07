@@ -62,7 +62,7 @@
 #define MAP_XIP_COW	0x04
 #define MAP_ATOMIC	0x08
 
-#define MAP_TYPE	MAP_SHARED
+#define MAP_TYPE	0x04
 
 /*
  * These routines implement the flowops from the f language. Each
@@ -2705,8 +2705,8 @@ flowoplib_mmap_appendfilerand(threadflow_t *threadflow, flowop_t *flowop)
 		ftruncate(fdesc->fd_num,(wss + appendsize));
 	}
 	
-	printf("iosize : %llu\n",iosize);
-	printf("appendsize : %llu\n",appendsize);
+	//printf("iosize : %llu\n",iosize);
+	//printf("appendsize : %llu\n",appendsize);
 	/* Measure time to write bytes */
 	flowop_beginop(threadflow, flowop);
 	memcpy(p+wss,iobuf,appendsize);
@@ -2835,7 +2835,7 @@ flowoplib_mmap(threadflow_t *threadflow, flowop_t *flowop)
 	flowop_beginop(threadflow, flowop);
 	//printf("MMAP wss: %d\n",wss);
 	p = mmap(NULL, wss + append_size, PROT_READ | PROT_WRITE, MAP_TYPE , fdesc->fd_num, 0);
-	printf("mmap error wss %ld  iosize: %ld\n",wss , append_size);
+	//printf("mmap error wss %ld  iosize: %ld\n",wss , append_size);
 	if (p == MAP_FAILED) {
                 printf("mmap error wss %ld  iosize: %ld\n",wss , append_size);
                 return FILEBENCH_ERROR;

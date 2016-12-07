@@ -819,6 +819,9 @@ int pmfs_xip_file_mmap(struct file *file, struct vm_area_struct *vma)
 
 	BUG_ON(!file->f_mapping->a_ops->get_xip_mem);
 
+	long map_size = vma->vm_end - vma->vm_start;
+	printk("mapping pages: %ld\n",map_size);
+
 	file_accessed(file);
 
 	vma->vm_flags |= VM_MIXEDMAP;
@@ -831,7 +834,7 @@ int pmfs_xip_file_mmap(struct file *file, struct vm_area_struct *vma)
 			return -ENOMEM;
 		}
 		if(vma->vm_flags & VM_ATOMIC)		
-			new_atm_mapping(file->f_mapping->host);
+			new_atm_mapping(file->f_mapping->host,map_size);
 	}
 	
 	attempt_crash("pmfs_xip_file_mmap 1",0);

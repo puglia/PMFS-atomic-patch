@@ -112,43 +112,10 @@ int rand_int(unsigned int *seed)
     return *seed;
 }
 
-
-# ifdef _EMULATE_LATENCY_USING_NOPS
-/* So you think nops are more accurate? you might be surprised */
-static inline void asm_nop10() {
-	asm volatile("nop");
-	asm volatile("nop");
-	asm volatile("nop");
-	asm volatile("nop");
-	asm volatile("nop");
-	asm volatile("nop");
-	asm volatile("nop");
-	asm volatile("nop");
-	asm volatile("nop");
-	asm volatile("nop");
-}
-
 static inline
 void
-emulate_latency_ns(int ns)
-{
-	int          i;
-	pcm_hrtime_t cycles;
-	pcm_hrtime_t start;
-	pcm_hrtime_t stop;
-	printk("emulating latency: %dns",ns);
-	cycles = NS2CYCLE(ns);
-	for (i=0; i<cycles; i+=5) {
-		asm_nop10(); /* each nop is 1 cycle */
-	}
-}
+emulate_latency_ns(int ns){
 
-# else
-
-static inline
-void
-emulate_latency_ns(int ns)
-{	
 	pcm_hrtime_t cycles;
 	pcm_hrtime_t start;
 	pcm_hrtime_t stop;
@@ -166,8 +133,6 @@ emulate_latency_ns(int ns)
 		stop = asm_rdtsc();
 	} while (stop - start < cycles);
 }
-
-# endif
 
 
  void emulate_latency(size_t size){
