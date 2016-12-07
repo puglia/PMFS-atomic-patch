@@ -64,7 +64,9 @@ int new_atm_mapping(struct inode *inode){
 	pmfs_atomic_mapping_t *atm_mapping;
 
 	pi = pmfs_get_inode(sb, inode->i_ino); 
-	nblocks = (inode->i_size >> sb->s_blocksize_bits) + 1;
+	nblocks = (inode->i_size >> sb->s_blocksize_bits) + 10;// ATOMIC_OVERSUPPLY;
+	//if(nblocks < MIN_ATOMIC_BLOCKS)
+	//	nblocks = MIN_ATOMIC_BLOCKS;
 
 	atm_mapping = vmalloc(sizeof(pmfs_atomic_mapping_t));
 	atm_mapping->owner = current->pid;
@@ -106,13 +108,13 @@ void finish_atm_mapping(struct inode *inode, int rollback){
 	pmfs_atomic_mapping_t *mapping;
 	
 	pi = pmfs_get_inode(sb, inode->i_ino);
-	printk("finish_atm_mapping \n");
+	//printk("finish_atm_mapping \n");
 	
 	mapping = get_atm_mapping(current->pid, inode->i_ino);
 	if(!mapping)
 		return;
 
-	printk("Ending Atomic Mapping \n");
+	//printk("Ending Atomic Mapping \n");
 	
 	attempt_crash("finish_atm_mapping 1",0);
 	

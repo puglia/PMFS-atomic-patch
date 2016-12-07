@@ -44,8 +44,8 @@ void mk_pageclean(struct vm_area_struct *vma,loff_t start, loff_t end, int mkrea
 		}
 		else {
 			//printk(KERN_NOTICE "XIP_COW - pmfs_cow_sync - page dirty\n");
-			//ptec = pte_mkclean(*ptep);
-			//ptep_set_access_flags(vma,addr,ptep,ptec,1);
+			ptec = pte_mkclean(*ptep);
+			ptep_set_access_flags(vma,addr,ptep,ptec,1);
 		}
 		
 		if(mkread){
@@ -140,8 +140,11 @@ SYSCALL_DEFINE3(msync, unsigned long, start, size_t, len, int, flags)
 			if(vma->vm_flags & VM_XIP_COW){		
 			error = vfs_fsync_range(file,fsync_start, fsync_end - 1, flags & 0x008?13:flags & 0x010?14:flags & 0x020?15:flags & 0x040?16:flags & 0x080?17:flags & 0x100?18:12 );
 			mk_pageclean(vma,fsync_start, fsync_end -1,0);
+			if(flags & 0x100)
+			   goto fflush;
 			}
 			else{
+fflush:
 				file_offset = vma->vm_pgoff * PAGE_SIZE;
 				error = vfs_fsync_range(file, 
 						file_offset + fsync_start - vma->vm_start,

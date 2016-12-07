@@ -1,11 +1,11 @@
 [tester]
 ioengine=mmap
-norandommap
-rw=readwrite
+#norandommap
+rw=write
 time_based
 runtime=60s
 #size=4g
 nrfiles=1
-filesize=32m
+filesize=532m
 directory=/mnt/pmfs
 end_fsync=1

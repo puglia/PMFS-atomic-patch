@@ -148,7 +148,7 @@ emulate_latency_ns(int ns)
 static inline
 void
 emulate_latency_ns(int ns)
-{
+{	
 	pcm_hrtime_t cycles;
 	pcm_hrtime_t start;
 	pcm_hrtime_t stop;
