@@ -62,7 +62,7 @@
 #define MAP_XIP_COW	0x04
 #define MAP_ATOMIC	0x08
 
-#define MAP_TYPE	0x04
+#define MAP_TYPE	MAP_ATOMIC
 
 /*
  * These routines implement the flowops from the f language. Each
@@ -2718,7 +2718,7 @@ flowoplib_mmap_appendfilerand(threadflow_t *threadflow, flowop_t *flowop)
 
 	return (FILEBENCH_OK);
 }
-
+int mapsize;
 static int
 flowoplib_msync(threadflow_t *threadflow, flowop_t *flowop)
 {
@@ -2739,25 +2739,7 @@ flowoplib_msync(threadflow_t *threadflow, flowop_t *flowop)
 	    &fdesc)) != FILEBENCH_OK)
 		return (ret);
 
-	/* an I/O size of zero means write entire working set with one I/O */
-	if ((iosize = avd_get_int(flowop->fo_iosize)) == 0)
-		iosize = wss;
-
-	/*
-	 * The file may actually be 0 bytes long, in which case skip
-	 * the buffer set up call (which would fail) and substitute
-	 * a small buffer, which won't really be used.
-	 */
-	/*if (iosize == 0) {
-		iobuf = (caddr_t)&zerowrtbuf;
-		filebench_log(LOG_DEBUG_SCRIPT,
-		    "flowop %s wrote zero length file", flowop->fo_name);
-	} else {
-		if (flowoplib_iobufsetup(threadflow, flowop, &iobuf,
-		    iosize) != 0)
-			return (FILEBENCH_ERROR);
-	}*/
-
+	
 	file = threadflow->tf_fse[srcfd];
 	if ((srcfd != 0) && (file == NULL)) {
 		filebench_log(LOG_ERROR, "flowop %s: NULL src file",
@@ -2765,16 +2747,9 @@ flowoplib_msync(threadflow_t *threadflow, flowop_t *flowop)
 		return (FILEBENCH_ERROR);
 	}
 
-	if (file)
-		wss = file->fse_size;
+	if (fstat(fdesc->fd_num, &sb) == -1)           /* To obtain file size */
+               printf("fstat error \n");
 
-	wsize = (int)MIN(wss, iosize);
-	fstat (fdesc->fd_num, &sb);
-	//printf("entered write mmap - file size:%ld\n",wss);
-	//printf("file real size - file size:%ld\n",sb.st_size);
-	/* Measure time to write bytes */
-	flowop_beginop(threadflow, flowop);
-	
 	p = threadflow->map_ptr[fdesc->fd_num];
 
 	if(!p){
@@ -2783,11 +2758,16 @@ flowoplib_msync(threadflow_t *threadflow, flowop_t *flowop)
 		return (FILEBENCH_ERROR);
 	}
 
+	wss = sb.st_size;
+
+	flowop_beginop(threadflow, flowop);
+	
+	//printf("msync wss : %d\n",wss);
 	if(msync(p,wss, MS_SYNC | 0x008)){
-		printf("msync error\n");
+		printf("msync error :%d and %d\n",wss,mapsize);
 		return FILEBENCH_ERROR;
 	}
-		
+		//usleep(10000);
 	flowop_endop(threadflow, flowop, bytes);
 
 	return (FILEBENCH_OK);
@@ -2834,8 +2814,10 @@ flowoplib_mmap(threadflow_t *threadflow, flowop_t *flowop)
 	/* Measure time to write bytes */
 	flowop_beginop(threadflow, flowop);
 	//printf("MMAP wss: %d\n",wss);
+	mapsize = wss + append_size;
 	p = mmap(NULL, wss + append_size, PROT_READ | PROT_WRITE, MAP_TYPE , fdesc->fd_num, 0);
-	//printf("mmap error wss %ld  iosize: %ld\n",wss , append_size);
+	//if(append_size > 0)
+	//	printf("mmap :%ld\n",wss + append_size);
 	if (p == MAP_FAILED) {
                 printf("mmap error wss %ld  iosize: %ld\n",wss , append_size);
                 return FILEBENCH_ERROR;
@@ -2858,7 +2840,7 @@ flowoplib_munmap(threadflow_t *threadflow, flowop_t *flowop)
 	uint64_t wss;
 	fb_fdesc_t *fdesc;
 	int srcfd = flowop->fo_srcfdnumber;
-	int ret;
+	int ret,append_size;
 	char *p;
 	int fd = flowoplib_fdnum(threadflow, flowop);
 
@@ -2874,15 +2856,18 @@ flowoplib_munmap(threadflow_t *threadflow, flowop_t *flowop)
 		    flowop->fo_name);
 		return (FILEBENCH_ERROR);
 	}
-
+		
 	if (file)
 		wss = file->fse_size;
 
+	append_size=avd_get_int(flowop->fo_iosize);
+	wss+=append_size;
 	p = threadflow->map_ptr[fdesc->fd_num];
 
 	/* Measure time to write bytes */
 	flowop_beginop(threadflow, flowop);
-	
+	//if(append_size > 0)
+	//	printf("wss :%ld\n",wss);
 	if(munmap(p, wss)){
 		printf("munmap error\n");
 		return FILEBENCH_ERROR;

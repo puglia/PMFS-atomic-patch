@@ -62,8 +62,8 @@ static int log_new_block(pmfs_transaction_t *trans,
 				set_error();
 				goto fail;*/
 			}
-			
-			errval = pmfs_add_block_to_free(trans,new_block);
+			__pmfs_free_block(sb, new_block, pi->i_blk_type,NULL);
+			//errval = pmfs_add_block_to_free(trans,new_block);
 			if(errval < 0)
 				goto fail;
 	}  else {

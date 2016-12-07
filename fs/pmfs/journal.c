@@ -47,12 +47,37 @@ pmfs_atomic_mapping_t *get_atm_mapping(pid_t pid, u64 ino){
 	return NULL;
 }
 
+pmfs_atomic_mapping_t *create_atm_mapping(pid_t pid, u64 ino){
+	int i;
+	pmfs_atomic_mapping_t *mapping;
+	for(i =0; i<MAX_ATOMIC_MAPPINGS; i++)
+		if(atomic_maps[i] == NULL){
+			atomic_maps[i] = vmalloc(sizeof(pmfs_atomic_mapping_t));
+			mapping = atomic_maps[i];
+			printk("Got it : %d\n",i);
+			break;
+		}
+		else if(atomic_maps[i]->active == 0){
+			mapping = atomic_maps[i];
+			printk("Got it : %d\n",i);
+			break;
+		}
+	
+	mapping->active = 1;
+	mapping->owner = pid;
+	mapping->inode_n = ino;
+	mapping->hits = 0;
+	return mapping;
+}
+
 void remove_atm_mapping(pid_t pid, u64 ino){
 	int i;
+	printk("want to break free: %d   inode: %ld\n",pid,ino);
 	for(i =0; i<MAX_ATOMIC_MAPPINGS; i++)
 		if(atomic_maps[i] != NULL && atomic_maps[i]->owner == pid && atomic_maps[i]->inode_n == ino){
-			vfree(atomic_maps[i]);
-			atomic_maps[i] = NULL;
+			printk("freeing this thing");
+			//vfree(atomic_maps[i]);
+			atomic_maps[i]->active = 0;
 			break;
 		}
 }
@@ -66,18 +91,16 @@ int new_atm_mapping(struct inode *inode,long total_data){
 	pi = pmfs_get_inode(sb, inode->i_ino);
 	nblocks = (total_data >> sb->s_blocksize_bits) + 2;
 
-	atm_mapping = vmalloc(sizeof(pmfs_atomic_mapping_t));
-	atm_mapping->owner = current->pid;
-	atm_mapping->inode_n	= inode->i_ino;
+	atm_mapping = create_atm_mapping(current->pid,inode->i_ino);
 	atm_mapping->trans_t = pmfs_new_cow_transaction(sb,nblocks,pi->i_blk_type);
-	atm_mapping->hits = 0;
+	
 	//attempt_crash("new_atm_mapping\n");
 	//printk("Owner: %d  inode %d  blocks %d size%ld \n",current->pid,inode->i_ino,nblocks,inode->i_size );
-	for(i =0; i<MAX_ATOMIC_MAPPINGS; i++)
+	/*for(i =0; i<MAX_ATOMIC_MAPPINGS; i++)
 		if(!atomic_maps[i]){
 			atomic_maps[i] = atm_mapping;
 			break;
-		}
+		}*/
 	return 0;
 }
 
@@ -87,11 +110,11 @@ void commit_atm_mapping(struct inode *inode){
 	pmfs_atomic_mapping_t *atm_mapping;
 	int nblocks;
 	pi = pmfs_get_inode(sb, inode->i_ino);
-	nblocks = atm_mapping->trans_t->num_entries;
 	atm_mapping = get_atm_mapping(current->pid, inode->i_ino);
+	nblocks = atm_mapping->trans_t->num_entries;
+	printk("################ nblocks :%d\n",nblocks);
 	if(!atm_mapping)
 		return;
-	printk("################ nblocks :%d\n",nblocks);
 	printk("trans->num_used :%d\n",atm_mapping->trans_t->num_used);
 	attempt_crash("commit_atm_mapping 1",0);
 	atm_mapping->hits = 0;
