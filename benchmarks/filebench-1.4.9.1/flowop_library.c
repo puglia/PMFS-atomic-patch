@@ -46,6 +46,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <errno.h>
 
 #ifndef HAVE_SYSV_SEM
 #include <semaphore.h>
@@ -63,6 +64,7 @@
 #define MAP_ATOMIC	0x08
 
 #define MAP_TYPE	MAP_ATOMIC
+
 
 /*
  * These routines implement the flowops from the f language. Each
@@ -2552,14 +2554,14 @@ flowoplib_mmap_readwholefile(threadflow_t *threadflow, flowop_t *flowop)
 	flowop_beginop(threadflow, flowop);
 	
 	for (bytes = 0; bytes < wss; bytes += iosize) {
-		memcpy(iobuf,p,iosize);
+		memcpy(iobuf,p+bytes,iosize);
 		iosize = (int)MIN(wss - bytes, iosize);
 	}
 	flowop_endop(threadflow, flowop, bytes);
 	total_bts += bytes;
 	total_loops++;
 
-	if (bytes <= 0) {
+	if (bytes <= 0 && wss > 0) {
 		filebench_log(LOG_ERROR,
 		    "readwhole fail Failed to read whole file: %s",
 		    strerror(errno));
@@ -2764,10 +2766,9 @@ flowoplib_msync(threadflow_t *threadflow, flowop_t *flowop)
 	
 	//printf("msync wss : %d\n",wss);
 	if(msync(p,wss, MS_SYNC | 0x008)){
-		printf("msync error :%d and %d\n",wss,mapsize);
+		printf("msync error :%d\n",wss);
 		return FILEBENCH_ERROR;
 	}
-		//usleep(10000);
 	flowop_endop(threadflow, flowop, bytes);
 
 	return (FILEBENCH_OK);
@@ -2813,13 +2814,14 @@ flowoplib_mmap(threadflow_t *threadflow, flowop_t *flowop)
 	
 	/* Measure time to write bytes */
 	flowop_beginop(threadflow, flowop);
-	//printf("MMAP wss: %d\n",wss);
 	mapsize = wss + append_size;
+	//printf("MMAP mapsize: %d\n",mapsize);
+	
 	p = mmap(NULL, wss + append_size, PROT_READ | PROT_WRITE, MAP_TYPE , fdesc->fd_num, 0);
 	//if(append_size > 0)
-	//	printf("mmap :%ld\n",wss + append_size);
 	if (p == MAP_FAILED) {
-                printf("mmap error wss %ld  iosize: %ld\n",wss , append_size);
+		printf("munmap error  %s    %lx    %ld\n",strerror(errno),p,wss);
+                printf("mmap error wss %s	%ld  iosize: %ld\n",strerror(errno),wss , append_size);
                 return FILEBENCH_ERROR;
         }
 	
@@ -2867,15 +2869,19 @@ flowoplib_munmap(threadflow_t *threadflow, flowop_t *flowop)
 	/* Measure time to write bytes */
 	flowop_beginop(threadflow, flowop);
 	//if(append_size > 0)
-	//	printf("wss :%ld\n",wss);
+	//	printf("munmap wss :%lx\n",p);
+	if(((unsigned long)p) & 0xFFF){
+		printf("munmap wss :%lx , %ld\n",p,fdesc->fd_num);
+		goto nevermind;
+	}
 	if(munmap(p, wss)){
-		printf("munmap error\n");
+		printf("munmap error  %s    %lx    %ld\n",strerror(errno),p,wss);
 		return FILEBENCH_ERROR;
 	}
-		
+nevermind:	
 	flowop_endop(threadflow, flowop, bytes);
 
-	threadflow->map_ptr[fd] = NULL;	
+	threadflow->map_ptr[fdesc->fd_num] = NULL;	
 
 	return (FILEBENCH_OK);
 }

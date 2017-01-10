@@ -41,6 +41,7 @@ typedef struct aiolist {
 #endif
 
 #define	THREADFLOW_MAXFD 128
+#define	THREADFLOW_MAXMAPPINGS 1 << 12
 #define	THREADFLOW_USEISM 0x1
 
 typedef struct threadflow {
@@ -61,7 +62,7 @@ typedef struct threadflow {
 	fbint_t		tf_constmemsize; /* constant copy of memory size */
 	fb_fdesc_t	tf_fd[THREADFLOW_MAXFD + 1]; /* Thread local fd's */
 	filesetentry_t	*tf_fse[THREADFLOW_MAXFD + 1]; /* Thread local files */
-	void		*map_ptr[THREADFLOW_MAXFD + 1]; /* Thread local files */
+	void		*map_ptr[THREADFLOW_MAXMAPPINGS]; /* Thread local files */
 	int		tf_fdrotor;	/* Rotating fd within set */
 	struct flowstats	tf_stats;	/* Thread statistics */
 	hrtime_t	tf_stime;	/* Start time of current flowop: used to measure the latency of the flowop */
