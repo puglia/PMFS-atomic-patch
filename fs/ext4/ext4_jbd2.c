@@ -12,9 +12,11 @@ static handle_t *ext4_get_nojournal(void)
 	handle_t *handle = current->journal_info;
 	unsigned long ref_cnt = (unsigned long)handle;
 
-	BUG_ON(ref_cnt >= EXT4_NOJOURNAL_MAX_REF_COUNT);
-
-	ref_cnt++;
+	//BUG_ON(ref_cnt >= EXT4_NOJOURNAL_MAX_REF_COUNT);
+	if(ref_cnt >= EXT4_NOJOURNAL_MAX_REF_COUNT)
+		ref_cnt = EXT4_NOJOURNAL_MAX_REF_COUNT - 1;
+	else
+		ref_cnt++;
 	handle = (handle_t *)ref_cnt;
 
 	current->journal_info = handle;
@@ -71,10 +73,10 @@ handle_t *__ext4_journal_start_sb(struct super_block *sb, unsigned int line,
 		return ERR_PTR(err);
 
 	journal = EXT4_SB(sb)->s_journal;
-	if (!journal)
-		return ext4_get_nojournal();
-	return jbd2__journal_start(journal, blocks, rsv_blocks, GFP_NOFS,
-				   type, line);
+	//if (!journal)
+	return ext4_get_nojournal();
+	//return jbd2__journal_start(journal, blocks, rsv_blocks, GFP_NOFS,
+	//			   type, line);
 }
 
 int __ext4_journal_stop(const char *where, unsigned int line, handle_t *handle)
