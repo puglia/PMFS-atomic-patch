@@ -61,7 +61,7 @@
 
 #define MAX_GEN_ID  ((uint16_t)-1)
 
-#define MAX_ATOMIC_MAPPINGS	128
+#define MAX_ATOMIC_MAPPINGS	1024
 
 /* persistent data structure to describe a single log-entry */
 /* every log entry is max CACHELINE_SIZE bytes in size */
